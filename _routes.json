@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/src/*",
+    "/og-image.png",
+    "/og-image.jpg",
+    "/favicon.svg",
+    "/favicon2.svg",
+    "/favicon-16x16.png",
+    "/favicon2-32x32.png",
+    "/apple-touch-icon.png",
+    "/site.webmanifest",
+    "/robots.txt"
+  ]
+}

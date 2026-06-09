@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.zip
+dist/
+.wrangler/
+deploy_log.txt
+cloudflare-upload.zip
+SECRETS.md
+.claude/

@@ -1,0 +1,21 @@
+# Trailing slash removal for /stocks/* pages
+/stocks/high-roe-stocks/ /stocks/high-roe-stocks 301
+/stocks/low-debt-stocks/ /stocks/low-debt-stocks 301
+/stocks/high-roa-stocks/ /stocks/high-roa-stocks 301
+/stocks/high-net-margin-stocks/ /stocks/high-net-margin-stocks 301
+/stocks/low-pe-stocks/ /stocks/low-pe-stocks 301
+/stocks/low-pb-stocks/ /stocks/low-pb-stocks 301
+/stocks/dividend-stocks/ /stocks/dividend-stocks 301
+/stocks/low-debt-dividend-stocks/ /stocks/low-debt-dividend-stocks 301
+/stocks/undervalued-tech-stocks/ /stocks/undervalued-tech-stocks 301
+/stocks/high-roe-tech-stocks/ /stocks/high-roe-tech-stocks 301
+/stocks/nasdaq-high-roe-stocks/ /stocks/nasdaq-high-roe-stocks 301
+/stocks/nyse-low-debt-stocks/ /stocks/nyse-low-debt-stocks 301
+/stocks/penny-stocks/ /stocks/penny-stocks 301
+/screener/ /screener 301
+/blog/ /blog 301
+
+# Static SPA routes — serve index.html directly
+# (catchall function handles /screener, /watchlist, /portfolio, /blog, /stock/*, /stocks/*)
+/                  /index.html 200
+/stocks/*          /index.html 200
