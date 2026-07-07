@@ -4982,6 +4982,7 @@ async function handleBlogSlug({ slug, env }) {
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,42px);line-height:1.1;letter-spacing:-.03em;margin:0 0 16px;color:#f9fafb">${post.title}</h1>
       <p style="color:#9ca3af;font-size:16px;line-height:1.65;margin:0 0 8px">${post.description}</p>
       <div style="font-size:13px;color:#6b7280;margin-bottom:36px">Published ${formattedDate} \xB7 DeltaScreener</div>
+      ${post.image_url ? `<img src="${escapeHtml(post.image_url)}" alt="${escapeHtml(post.title)}" style="width:100%;border-radius:16px;margin-bottom:36px;object-fit:cover;max-height:420px;display:block" loading="lazy">` : ""}
       <article style="font-size:16px;line-height:1.8;color:#d1d5db">
         ${markdownToHtml3(post.content || "")}
       </article>

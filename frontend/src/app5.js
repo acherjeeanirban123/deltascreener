@@ -1,4 +1,4 @@
-// v20260528-3
+// v20260704-dataquality
 // ═══════════════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════════
@@ -11,6 +11,15 @@ const GCID = '1062200569141-0vik7idoi4skecsh8dii6nksmg80afrv.apps.googleusercont
 const SITE_ORIGIN = 'https://deltascreener.com'
 const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/og-image.png`
 const DEFAULT_TWITTER_SITE = '@deltascreener'
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANALYTICS TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+export function trackEvent(eventName, params = {}) {
+  if (window.gtag) {
+    window.gtag('event', eventName, params)
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // API CLIENT
@@ -50,11 +59,254 @@ export const auth = {
   signedIn: () => !!auth.user()
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// PRO STATUS (Gumroad)
+// ═══════════════════════════════════════════════════════════════════════
+const GUMROAD_URL = 'https://acherjeeanirban.gumroad.com/l/acuvpw'
+
+const pro = {
+  _cache: null,   // { email, isPro, ts }
+  _ttl: 5 * 60 * 1000,  // 5 min
+
+  getEmail() {
+    try { return sessionStorage.getItem('ds-pro-email') || '' } catch { return '' }
+  },
+  setEmail(email) {
+    try { sessionStorage.setItem('ds-pro-email', email.toLowerCase().trim()) } catch {}
+  },
+
+  async check(email) {
+    const e = (email || this.getEmail()).toLowerCase().trim()
+    if (!e) return false
+    if (this._cache && this._cache.email === e && Date.now() - this._cache.ts < this._ttl) {
+      return this._cache.isPro
+    }
+    try {
+      const res = await fetch(`/api/pro-status?email=${encodeURIComponent(e)}`)
+      const data = await res.json()
+      this._cache = { email: e, isPro: !!data.pro, ts: Date.now() }
+      if (data.pro) this.setEmail(e)
+      return !!data.pro
+    } catch {
+      return false
+    }
+  },
+
+  isPro() {
+    // Fast synchronous check — returns cached value or false
+    if (this._cache && Date.now() - this._cache.ts < this._ttl) return this._cache.isPro
+    return false
+  },
+
+  // Best email we can guess for an auto-unlock: a remembered checkout email,
+  // a previously-verified Pro email, or the logged-in Google account email.
+  bestKnownEmail() {
+    try {
+      const checkout = sessionStorage.getItem('ds-checkout-email') || ''
+      if (checkout) return checkout
+    } catch {}
+    const stored = this.getEmail()
+    if (stored) return stored
+    try {
+      const u = (typeof auth !== 'undefined' && auth.user && auth.user()) || null
+      if (u && u.email) return u.email.toLowerCase().trim()
+    } catch {}
+    return ''
+  },
+
+  // After checkout, the Gumroad Ping webhook upserts the buyer into the DB,
+  // but that round-trip takes a few seconds. Poll pro-status with the buyer's
+  // email until it flips to Pro, then unlock with zero retyping.
+  async pollUnlock(email, { tries = 12, interval = 2500, onUnlock } = {}) {
+    const e = (email || this.bestKnownEmail()).toLowerCase().trim()
+    if (!e) return false
+    for (let i = 0; i < tries; i++) {
+      // Bust the 5-min cache so each poll hits the API fresh.
+      this._cache = null
+      const isPro = await this.check(e)
+      if (isPro) {
+        this.setEmail(e)
+        if (typeof onUnlock === 'function') onUnlock(e)
+        return true
+      }
+      await new Promise(r => setTimeout(r, interval))
+    }
+    return false
+  },
+
+  async showUpgradeModal() {
+    const existing = document.getElementById('ds-pro-modal')
+    if (existing) existing.remove()
+    const modal = document.createElement('div')
+    modal.id = 'ds-pro-modal'
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px)'
+    const featRow = (label) => `<li style="display:flex;align-items:center;gap:10px;font-size:13.5px;color:#cbd5e1;line-height:1.5"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" style="flex-shrink:0"><path d="M16.5 5.5L8 14L3.5 9.5" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>${label}</li>`
+    modal.innerHTML = `
+      <div style="background:#141a26;border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:32px 30px 28px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.55);position:relative">
+        <button id="ds-pro-modal-close" style="position:absolute;top:16px;right:18px;background:none;border:none;color:#6b7280;font-size:20px;cursor:pointer;line-height:1">×</button>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#2dd4bf;margin-bottom:10px">DeltaScreener Pro</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:18px">
+          <span style="font-size:36px;font-weight:800;color:#f9fafb;line-height:1;letter-spacing:-.02em">$5</span>
+          <span style="font-size:14px;color:#6b7280;font-weight:500">/ month</span>
+        </div>
+        <ul style="list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:11px">
+          ${featRow('Unlimited saved screens')}
+          ${featRow('Export to Excel &amp; CSV')}
+          ${featRow('Email alerts on price &amp; filters')}
+          ${featRow('Priority support')}
+        </ul>
+        <a href="${GUMROAD_URL}?wanted=true" data-gumroad-overlay-checkout="true" style="display:block;text-align:center;padding:13px 20px;border-radius:11px;background:#2dd4bf;color:#0a0f1a;text-decoration:none;font-weight:700;font-size:14.5px;letter-spacing:.01em">Upgrade to Pro</a>
+        <div style="text-align:center;font-size:12px;color:#6b7280;margin-top:12px">Secure checkout via Gumroad · Cancel anytime</div>
+        <div style="height:1px;background:rgba(255,255,255,.07);margin:22px 0 18px"></div>
+        <div style="color:#94a3b8;font-size:12.5px;margin-bottom:10px">Already subscribed? Verify your email:</div>
+        <div style="display:flex;gap:8px">
+          <input id="ds-pro-email-input" type="email" placeholder="you@email.com" value="${escapeHtml(pro.bestKnownEmail())}" style="flex:1;padding:10px 13px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#0d1320;color:#f3f4f6;font-size:13.5px;outline:none" />
+          <button id="ds-pro-verify-btn" style="padding:10px 16px;border-radius:9px;background:#26303f;color:#e2e8f0;border:1px solid rgba(255,255,255,.1);cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap">Verify</button>
+        </div>
+        <div id="ds-pro-verify-msg" style="font-size:12.5px;margin-top:10px;min-height:16px"></div>
+      </div>
+    `
+    document.body.appendChild(modal)
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove() })
+    document.getElementById('ds-pro-modal-close').addEventListener('click', () => modal.remove())
+    // When the user clicks "Upgrade to Pro", remember the best-known email so we
+    // can auto-verify after checkout. The overlay listener (below) starts polling.
+    const upgradeBtn = modal.querySelector('[data-gumroad-overlay-checkout]')
+    if (upgradeBtn) {
+      upgradeBtn.addEventListener('click', () => {
+        const known = pro.bestKnownEmail()
+        if (known) { try { sessionStorage.setItem('ds-checkout-email', known) } catch {} }
+      })
+    }
+    document.getElementById('ds-pro-verify-btn').addEventListener('click', async () => {
+      const email = document.getElementById('ds-pro-email-input').value.trim()
+      const msg = document.getElementById('ds-pro-verify-msg')
+      const btn = document.getElementById('ds-pro-verify-btn')
+      if (!email) { msg.style.color = '#f87171'; msg.textContent = 'Please enter your email.'; return }
+      btn.textContent = 'Checking…'; btn.disabled = true
+      const isPro = await pro.check(email)
+      btn.textContent = 'Verify'; btn.disabled = false
+      if (isPro) {
+        msg.style.color = '#2dd4bf'
+        msg.textContent = 'Pro unlocked. Excel export is now available.'
+        setTimeout(() => modal.remove(), 1500)
+      } else {
+        msg.style.color = '#f87171'
+        msg.textContent = 'No active Pro subscription found for this email.'
+      }
+    })
+    // Allow Enter key in the email field
+    document.getElementById('ds-pro-email-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('ds-pro-verify-btn').click()
+    })
+  }
+}
+window.pro = pro
+
+// ── On-site Gumroad checkout overlay ──────────────────────────────────
+// Self-contained: does NOT depend on gumroad.js (which is unreliable in an
+// SPA because it binds once at load and the router re-renders the DOM).
+// A single document-level delegated listener catches every overlay CTA —
+// SSR buttons, SPA-rendered buttons, and the dynamic upgrade modal alike —
+// and opens the Gumroad product in an iframe overlay on deltascreener.com.
+function openGumroadOverlay(productUrl) {
+  document.getElementById('ds-gr-overlay')?.remove()
+  let src = productUrl
+  // Force the embedded checkout view + transparent chrome
+  if (!/[?&]wanted=/.test(src)) src += (src.includes('?') ? '&' : '?') + 'wanted=true'
+  const ov = document.createElement('div')
+  ov.id = 'ds-gr-overlay'
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(8,11,18,.78);backdrop-filter:blur(4px);padding:24px'
+  ov.innerHTML = `
+    <button id="ds-gr-close" aria-label="Close" style="position:absolute;top:18px;right:22px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(20,26,38,.9);color:#e2e8f0;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>
+    <div style="width:100%;max-width:760px;height:88vh;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.6);position:relative">
+      <div id="ds-gr-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#6b7280;font:600 14px Inter,system-ui,sans-serif;background:#fff">Loading secure checkout…</div>
+      <iframe src="${src}" title="DeltaScreener Pro checkout" style="width:100%;height:100%;border:0;position:relative;z-index:1" onload="var l=document.getElementById('ds-gr-loading');if(l)l.style.display='none'"></iframe>
+    </div>`
+  document.body.appendChild(ov)
+  document.body.style.overflow = 'hidden'
+
+  let purchased = false
+
+  // Listen for Gumroad's checkout success postMessage. Gumroad emits an event
+  // when the purchase completes; payloads vary, so we sniff broadly for a
+  // success signal and any email field it may include.
+  function onGumroadMessage(ev) {
+    if (!/gumroad\.com$/.test((() => { try { return new URL(ev.origin).hostname } catch { return '' } })()) &&
+        !/\.gumroad\.com$/.test((() => { try { return new URL(ev.origin).hostname } catch { return '' } })())) return
+    let d = ev.data
+    if (typeof d === 'string') { try { d = JSON.parse(d) } catch { d = { raw: d } } }
+    const blob = JSON.stringify(d || '').toLowerCase()
+    const looksLikeSuccess = /purchase|success|sale|receipt|thank|complete/.test(blob)
+    if (!looksLikeSuccess) return
+    purchased = true
+    // Try to capture the buyer email Gumroad may have included.
+    const email = (d && (d.email || d.purchaser_email || (d.purchase && d.purchase.email))) || ''
+    if (email) { try { sessionStorage.setItem('ds-checkout-email', String(email).toLowerCase().trim()) } catch {} }
+    startAutoUnlock()
+  }
+  window.addEventListener('message', onGumroadMessage)
+
+  function startAutoUnlock() {
+    const email = pro.bestKnownEmail()
+    if (!email) {
+      // No email to poll — fall back to the verify modal, pre-focused.
+      pro.showUpgradeModal()
+      setTimeout(() => { const inp = document.getElementById('ds-pro-email-input'); if (inp) inp.focus() }, 50)
+      return
+    }
+    // Show a lightweight "activating Pro…" state on the overlay if still open.
+    const loading = document.getElementById('ds-gr-loading')
+    if (loading) { loading.style.display = 'flex'; loading.textContent = 'Activating your Pro access…' }
+    pro.pollUnlock(email, {
+      onUnlock: () => {
+        close()
+        if (typeof render === 'function') { try { render() } catch {} }
+        const t = document.createElement('div')
+        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100001;background:#0f1d1a;border:1px solid rgba(45,212,191,.4);color:#2dd4bf;padding:13px 22px;border-radius:11px;font:600 14px Inter,system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.5)'
+        t.textContent = '✓ Pro unlocked — thanks for upgrading!'
+        document.body.appendChild(t)
+        setTimeout(() => t.remove(), 4000)
+      }
+    })
+  }
+
+  const close = () => {
+    ov.remove()
+    document.body.style.overflow = ''
+    window.removeEventListener('message', onGumroadMessage)
+    // Safety net: if the user closes the overlay manually (e.g. Gumroad's own
+    // postMessage didn't fire), poll once anyway in case the webhook landed.
+    if (!purchased && pro.bestKnownEmail() && !pro.isPro()) {
+      pro.pollUnlock(pro.bestKnownEmail(), {
+        tries: 4, interval: 2500,
+        onUnlock: () => { if (typeof render === 'function') { try { render() } catch {} } }
+      })
+    }
+  }
+  ov.querySelector('#ds-gr-close').addEventListener('click', close)
+  ov.addEventListener('click', e => { if (e.target === ov) close() })
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc) } })
+}
+window.openGumroadOverlay = openGumroadOverlay
+document.addEventListener('click', e => {
+  const trigger = e.target.closest('[data-gumroad-overlay-checkout]')
+  if (!trigger) return
+  const href = trigger.getAttribute('href') || GUMROAD_URL
+  if (!/gumroad\.com\/l\//.test(href) && !/gum\.co\//.test(href)) return
+  e.preventDefault()
+  openGumroadOverlay(href)
+})
+
 export async function handleGoogleCredential(resp) {
   try {
     auth.setGoogleCredential(resp.credential)
+    const isNew = !auth.user()
     const data = await apiJson('/auth/google', { credential: resp.credential })
     auth.set(data)
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', isNew ? 'sign_up' : 'login', { method: 'Google' })
+    }
     render()
     syncUserData().finally(render)
   } catch (e) {
@@ -92,15 +344,36 @@ function renderGoogleButton() {
     window.__dsGoogleInitDone = true
   }
   if (el.dataset.rendered === '1') return
-  el.innerHTML = ''
-  google.accounts.id.renderButton(el, {
-    theme: 'filled_blue',
-    size: 'large',
-    type: 'standard',
-    shape: 'pill',
-    text: 'signin_with'
-  })
+  // Compact custom 2-line button ("Sign in / with Google"). Triggers the real Google flow.
+  el.innerHTML = `
+    <button type="button" class="gsi-compact" id="gsi-compact-btn" aria-label="Sign in with Google">
+      <span class="gsi-compact-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.63z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      </span>
+      <span class="gsi-compact-text"><span>Sign in</span><span>with Google</span></span>
+    </button>
+  `
+  el.querySelector('#gsi-compact-btn').addEventListener('click', triggerGoogleSignIn)
   el.dataset.rendered = '1'
+}
+function triggerGoogleSignIn() {
+  if (!window.google?.accounts?.id) return
+  // Render Google's own button off-screen and click it — guarantees the standard
+  // sign-in popup even when One-Tap is suppressed by the browser.
+  let host = document.getElementById('gsi-hidden-host')
+  if (!host) {
+    host = document.createElement('div')
+    host.id = 'gsi-hidden-host'
+    host.style.cssText = 'position:absolute;top:-9999px;left:-9999px;opacity:0;pointer-events:auto'
+    document.body.appendChild(host)
+  }
+  host.innerHTML = ''
+  google.accounts.id.renderButton(host, { type: 'standard', text: 'signin_with', size: 'large' })
+  setTimeout(() => {
+    const real = host.querySelector('div[role="button"], button')
+    if (real) real.click()
+    else google.accounts.id.prompt()
+  }, 60)
 }
 
 function normalizeWatchItem(item = {}) {
@@ -181,6 +454,9 @@ export async function validateSession() {
 function openSavedScreen(query) {
   sessionStorage.setItem('ds-query', query)
   sessionStorage.setItem('ds-screener-page', '1')
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', 'screen_opened', { query: query.slice(0, 100) })
+  }
   navigate('/screener')
 }
 window.handleGoogleCredential = handleGoogleCredential
@@ -211,7 +487,15 @@ export const fmt = {
     if (Math.abs(n) >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T'
     if (Math.abs(n) >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B'
     if (Math.abs(n) >= 1e6)  return '$' + (n / 1e6).toFixed(1) + 'M'
+    if (Math.abs(n) >= 1e3)  return '$' + (n / 1e3).toFixed(1) + 'K'
     return '$' + n.toFixed(0)
+  },
+  // For values stored in $ millions (e.g. annual P&L series)
+  compactM: v => {
+    if (v == null) return '—'
+    const n = Number(v)
+    if (!Number.isFinite(n) || n <= 0) return '—'
+    return fmt.compact(n * 1e6)
   },
   date: v => v ? new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
   pctClass: v => v == null ? '' : v >= 0 ? 'up' : 'dn',
@@ -220,11 +504,23 @@ export const fmt = {
 
 const theme = {
   key: 'ds-theme',
-  get: () => 'dark',
-  apply() {
-    localStorage.setItem(theme.key, 'dark')
-    document.body.setAttribute('data-theme', 'dark')
-    document.documentElement.setAttribute('data-theme', 'dark')
+  // Default to dark for returning users; new visitors get dark too (brand default).
+  // A saved 'light' choice is respected. (Both modes are fully supported.)
+  get() {
+    const saved = localStorage.getItem(theme.key) || localStorage.getItem('theme')
+    return saved === 'light' ? 'light' : 'dark'
+  },
+  apply(mode) {
+    const next = mode === 'light' ? 'light' : (mode === 'dark' ? 'dark' : theme.get())
+    localStorage.setItem(theme.key, next)
+    localStorage.setItem('theme', next)
+    document.body.setAttribute('data-theme', next)
+    document.documentElement.setAttribute('data-theme', next)
+    const tBtn = document.getElementById('theme-toggle')
+    if (tBtn) {
+      tBtn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+      tBtn.innerHTML = themeToggleIcon(next)
+    }
     const googleSlot = document.getElementById('google-signin')
     if (googleSlot) {
       googleSlot.dataset.rendered = ''
@@ -232,10 +528,16 @@ const theme = {
     }
   },
   toggle() {
-    theme.apply()
+    theme.apply(theme.get() === 'dark' ? 'light' : 'dark')
   }
 }
-window.toggleTheme = () => theme.apply()
+function themeToggleIcon(mode) {
+  // Show the icon for the mode you'd switch TO: sun when in dark, moon when in light.
+  return mode === 'dark'
+    ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`
+    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+}
+window.toggleTheme = () => theme.toggle()
 
 function renderBrandMark({ className = 'logo-icon', ariaLabel = 'DeltaScreener', decorative = true } = {}) {
   const ariaAttrs = decorative ? 'aria-hidden="true"' : `alt="${escapeHtml(ariaLabel)}"`
@@ -310,6 +612,24 @@ function renderTickerAvatar(ticker, name = '') {
     <span class="trending-stock-meta">
       <strong>${escapeHtml(ticker)}</strong>
       <span>${escapeHtml(name || '')}</span>
+    </span>
+  `
+}
+
+// Logo for the screener results table — works for any US ticker via FMP's
+// image-stock endpoint. Falls back to a colored letter avatar if the image
+// 404s (handled by onerror swapping in the fallback span).
+function renderScreenerLogo(ticker = '') {
+  const t = String(ticker || '').trim().toUpperCase()
+  const meta = getTickerBrandMeta(t)
+  // Same logo CDN your D1 overview stores (overview.image) and stock pages use.
+  const src = t
+    ? `https://images.financialmodelingprep.com/symbol/${encodeURIComponent(t)}.png`
+    : ''
+  return `
+    <span class="screener-logo ${meta.hue}" aria-hidden="true">
+      <span class="screener-logo-fallback">${escapeHtml(meta.letter)}</span>
+      ${src ? `<img src="${src}" alt="" loading="lazy" decoding="async" onerror="this.remove()" />` : ''}
     </span>
   `
 }
@@ -423,9 +743,10 @@ function animateNumericCounter(el) {
   const start = performance.now()
   const duration = 1400
   const tick = now => {
-    const progress = Math.min(1, (now - start) / duration)
+    const progress = Math.min(1, Math.max(0, (now - start) / duration))
     const eased = 1 - Math.pow(1 - progress, 3)
-    el.textContent = Math.floor(target * eased).toLocaleString('en-US')
+    const value = Math.max(0, Math.floor(target * eased))
+    el.textContent = value.toLocaleString('en-US')
     if (progress < 1) requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)
@@ -466,6 +787,7 @@ function formatSeoCompact(value) {
   if (Math.abs(n) >= 1e12) return `$${(n / 1e12).toFixed(2)}T`
   if (Math.abs(n) >= 1e9) return `$${(n / 1e9).toFixed(2)}B`
   if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(1)}M`
+  if (Math.abs(n) >= 1e3) return `$${(n / 1e3).toFixed(1)}K`
   return `$${n.toFixed(0)}`
 }
 
@@ -701,45 +1023,52 @@ export function buildSparkline(indexItem) {
   const positive = change >= 0
   const pointCount = 18
   const seed = String(indexItem?.name || indexItem?.symbol || 'IDX').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-  const points = Array.from({ length: pointCount }, (_, idx) => {
-    const progress = idx / (pointCount - 1)
-    const waveA = Math.sin((idx + seed * 0.01) * 0.8) * 0.028
-    const waveB = Math.cos((idx + seed * 0.008) * 0.42) * 0.018
-    const drift = positive ? -progress * 0.17 : progress * 0.17
-    const nudge = positive ? (idx > 10 ? -0.018 : 0.012) : (idx > 10 ? 0.018 : -0.01)
-    const base = positive ? 0.7 : 0.34
-    return Math.max(0.18, Math.min(0.82, base + drift + waveA + waveB + nudge))
-  })
+  // Seeded PRNG so each index gets a stable but distinct jagged shape
+  let rngState = (seed % 2147483647) || 1
+  const rand = () => (rngState = (rngState * 48271) % 2147483647) / 2147483647
+  const pc = 40
+  // Build a realistic, noisy price path that net rises (up) or falls (dn)
+  const raw = []
+  let val = positive ? 0.62 : 0.42
+  for (let idx = 0; idx < pc; idx++) {
+    const progress = idx / (pc - 1)
+    const drift = positive ? -0.34 / (pc - 1) : 0.34 / (pc - 1)   // SVG y is inverted
+    const noise = (rand() - 0.5) * 0.12
+    const wave = Math.sin((idx + seed * 0.01) * 0.55) * 0.015
+    val = val + drift + noise * 0.5 + (idx ? 0 : 0)
+    raw.push(val + wave)
+  }
+  // Normalize into the visible band
+  const lo = Math.min(...raw), hi = Math.max(...raw)
+  const span = (hi - lo) || 1
+  const points = raw.map(v => 0.16 + ((v - lo) / span) * 0.66)
   const width = 176
   const height = 72
-  const baseline = height - 8
+  const baseline = height - 6
   const coords = points.map((p, idx) => ({
-    x: Number((idx * (width / (pointCount - 1))).toFixed(1)),
+    x: Number((idx * (width / (pc - 1))).toFixed(1)),
     y: Number((p * height).toFixed(1)),
   }))
-  const smoothPath = coords.map((pt, idx, arr) => {
+  // Lightly smoothed but still jagged: short control handles preserve the noise
+  const linePath = coords.map((pt, idx, arr) => {
     if (idx === 0) return `M ${pt.x} ${pt.y}`
     const prev = arr[idx - 1]
-    const cp1x = Number((prev.x + (pt.x - prev.x) * 0.45).toFixed(1))
-    const cp1y = prev.y
-    const cp2x = Number((prev.x + (pt.x - prev.x) * 0.55).toFixed(1))
-    const cp2y = pt.y
-    return `C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pt.x} ${pt.y}`
+    const cpx = Number((prev.x + (pt.x - prev.x) * 0.5).toFixed(1))
+    return `Q ${cpx} ${prev.y}, ${pt.x} ${pt.y}`
   }).join(' ')
-  const fillPath = `${smoothPath} L ${coords[coords.length - 1].x} ${baseline} L ${coords[0].x} ${baseline} Z`
+  const fillPath = `${linePath} L ${coords[coords.length - 1].x} ${baseline} L ${coords[0].x} ${baseline} Z`
   const end = coords[coords.length - 1]
   return `<svg class="idx-spark" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
     <defs>
       <linearGradient id="spark-fill-${positive ? 'up' : 'dn'}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${positive ? '#10b981' : '#ef4444'}" stop-opacity="${positive ? '0.28' : '0.24'}"/>
-        <stop offset="100%" stop-color="${positive ? '#10b981' : '#ef4444'}" stop-opacity="0"/>
+        <stop offset="0%" stop-color="${positive ? '#16a34a' : '#ef4444'}" stop-opacity="${positive ? '0.22' : '0.20'}"/>
+        <stop offset="100%" stop-color="${positive ? '#16a34a' : '#ef4444'}" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <line class="grid" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"></line>
     <path class="area ${positive ? 'up' : 'dn'}" d="${fillPath}"></path>
-    <path class="glow ${positive ? 'up' : 'dn'}" d="${smoothPath}"></path>
-    <path class="line ${positive ? 'up' : 'dn'}" d="${smoothPath}"></path>
-    <circle class="dot ${positive ? 'up' : 'dn'}" cx="${end.x}" cy="${end.y}" r="4.4"></circle>
+    <line class="grid dashed" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"></line>
+    <path class="line ${positive ? 'up' : 'dn'}" d="${linePath}"></path>
+    <circle class="dot ${positive ? 'up' : 'dn'}" cx="${end.x}" cy="${end.y}" r="3.4"></circle>
   </svg>`
 }
 
@@ -897,8 +1226,10 @@ export async function render() {
   if (isBlogRoute) {
     const prerendered = document.querySelector('[data-prerender-shell]')
     if (prerendered) {
-      // Blog pages use dark styles — keep dark theme on body
-      document.body.setAttribute('data-theme', 'dark')
+      // Respect the user's saved theme so navigating to/from blog doesn't flip modes
+      const t = theme.get()
+      document.body.setAttribute('data-theme', t)
+      document.documentElement.setAttribute('data-theme', t)
       renderHeader()
       bindRouteElements(document)
       return
@@ -908,9 +1239,61 @@ export async function render() {
       return
     }
   }
-  // Restore dark theme if user had it set before visiting a blog page
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme) document.body.setAttribute('data-theme', savedTheme)
+  // Static server-rendered trust/marketing pages (pricing, about, etc.):
+  // these are fully rendered by their Cloudflare Pages functions into a prerender
+  // shell. Keep that SSR content instead of wiping it and 404-ing — the SPA has no
+  // client-side route for them. Only bail when the SSR shell is actually present
+  // (direct page load); client-side nav to these paths falls through to a full reload.
+  const STATIC_SSR_ROUTES = new Set(['/pricing', '/about', '/disclaimer', '/refund'])
+  if (STATIC_SSR_ROUTES.has(path)) {
+    const prerendered = document.querySelector('[data-prerender-shell]')
+    if (prerendered) {
+      const t = theme.get()
+      document.body.setAttribute('data-theme', t)
+      document.documentElement.setAttribute('data-theme', t)
+      renderHeader()
+      bindRouteElements(document)
+      return
+    } else {
+      // Client-side navigation into one of these — force a real page load for SSR.
+      location.assign(location.href)
+      return
+    }
+  }
+  // Stock routes: keep the server-rendered prerender shell for SEO
+  // The SSR shell has real content (price, financials, description) that Google needs to index
+  const isStockRoute = path.startsWith('/stock/')
+  if (isStockRoute) {
+    const prerendered = document.querySelector('[data-prerender-shell]')
+    if (prerendered) {
+      // SSR content exists (direct page load) — keep it, then hydrate the interactive SPA on top.
+      // This only runs ONCE, on the initial document load. After we remove the shell, any later
+      // render() falls through to the generic client-side router below (no full reload), which
+      // prevents the reload loop that was resetting stock-page tabs back to Overview.
+      renderHeader()
+      bindRouteElements(document)
+      const main = document.createElement('div')
+      main.id = 'main'
+      const oldMain = document.getElementById('main')
+      if (oldMain) oldMain.remove()
+      app.appendChild(main)
+      prerendered.remove()
+      const ticker = path.split('/stock/')[1]?.split('/')[0]?.toUpperCase()
+      if (ticker && routes['/stock/:ticker']) {
+        try { await routes['/stock/:ticker'](main, { ticker }) } catch (e) {}
+      }
+      renderFooter()
+      bindRouteElements(document)
+      return
+    }
+    // No prerender shell (client-side navigation / re-render): fall through to the generic
+    // router below, which renders the interactive SPA stock page. Do NOT location.assign here —
+    // that caused an infinite full-page-reload loop.
+  }
+  // Apply theme: default is dark unless user explicitly chose light
+  const savedTheme = theme.get()
+  document.body.setAttribute('data-theme', savedTheme)
+  document.documentElement.setAttribute('data-theme', savedTheme)
   app.querySelectorAll?.('[data-prerender-shell="1"]')?.forEach?.(node => node.remove())
   renderHeader()
   const main = document.createElement('div')
@@ -962,18 +1345,24 @@ export function renderHeader() {
       </a>
       <div class="search-box">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="hdr-search" placeholder="Search company or ticker: Microsoft, MSFT…" autocomplete="off" />
+        <input type="text" id="hdr-search" placeholder="Search any US stock — e.g. Apple, AAPL, Microsoft…" autocomplete="off" />
         <div class="search-dropdown hidden" id="hdr-dropdown"></div>
       </div>
       <nav class="nav">
         <a href="${routeHref('/')}" data-route="/" onclick="navigate('/');return false" class="${path === '/' ? 'active' : ''}">Home</a>
         <a href="${routeHref('/screener')}" data-route="/screener" onclick="navigate('/screener');return false" class="${path === '/screener' ? 'active' : ''}">Screener</a>
         <a href="${routeHref('/watchlist')}" data-route="/watchlist" onclick="navigate('/watchlist');return false" class="${path === '/watchlist' ? 'active' : ''}">Watchlist</a>
+        <a href="${routeHref('/alerts')}" data-route="/alerts" onclick="navigate('/alerts');return false" class="${path === '/alerts' ? 'active' : ''}">Alerts</a>
         <a href="/blog" class="nav-blog-link${path === '/blog' || path.startsWith('/blog/') ? ' active' : ''}" title="Blog" aria-label="Blog">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:5px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Blog
         </a>
+        <a href="${routeHref('/news')}" data-route="/news" onclick="navigate('/news');return false" class="nav-news-link${path === '/news' ? ' active' : ''}" title="Stock market news" aria-label="News">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:5px"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>News
+        </a>
+        <span id="nav-pro-slot"></span>
       </nav>
       <div class="hdr-actions">
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light / dark mode" aria-label="Toggle theme">${themeToggleIcon(theme.get())}</button>
         <div id="auth-slot"></div>
       </div>
     </div>
@@ -998,6 +1387,29 @@ export function renderHeader() {
     setTimeout(renderGoogleButton, 1000)
   }
   
+  // Wire Pro badge in nav
+  const navProSlot = document.getElementById('nav-pro-slot')
+  if (navProSlot) {
+    const cachedProEmail = pro.getEmail()
+    if (cachedProEmail && pro.isPro()) {
+      navProSlot.innerHTML = `<span style="font-size:11px;font-weight:800;letter-spacing:.08em;background:#2dd4bf;color:#0f1117;padding:3px 9px;border-radius:99px;vertical-align:middle">PRO</span>`
+    } else {
+      navProSlot.innerHTML = `<a href="/pricing" style="font-size:12px;font-weight:700;color:#2dd4bf;text-decoration:none;border:1px solid rgba(45,212,191,.4);border-radius:99px;padding:3px 10px;white-space:nowrap" title="Upgrade to Pro">Upgrade</a>`
+      navProSlot.querySelector('a').addEventListener('click', e => { e.preventDefault(); pro.showUpgradeModal() })
+    }
+    // Async: check Pro status and update badge
+    pro.check(cachedProEmail).then(isPro => {
+      const slot = document.getElementById('nav-pro-slot')
+      if (!slot) return
+      if (isPro) {
+        slot.innerHTML = `<span style="font-size:11px;font-weight:800;letter-spacing:.08em;background:#2dd4bf;color:#0f1117;padding:3px 9px;border-radius:99px;vertical-align:middle">PRO</span>`
+      } else {
+        slot.innerHTML = `<a href="/pricing" style="font-size:12px;font-weight:700;color:#2dd4bf;text-decoration:none;border:1px solid rgba(45,212,191,.4);border-radius:99px;padding:3px 10px;white-space:nowrap" title="Upgrade to Pro">Upgrade</a>`
+        slot.querySelector('a').addEventListener('click', e => { e.preventDefault(); pro.showUpgradeModal() })
+      }
+    }).catch(() => {})
+  }
+
   // Wire search
   const input = document.getElementById('hdr-search')
   const dd = document.getElementById('hdr-dropdown')
@@ -1009,9 +1421,12 @@ export function renderHeader() {
 }
 
 export function renderFooter() {
+  // Remove any existing footer(s) first so we never stack duplicates
+  // (the stock-page hydration path and generic render path both call this).
+  document.querySelectorAll('#app > footer#foot, #app > footer').forEach(el => el.remove())
   const f = document.createElement('footer')
   f.id = 'foot'
-  f.innerHTML = `<div class="container">© ${new Date().getFullYear()} DeltaScreener · Data: Yahoo Finance, SEC EDGAR, FMP, Alpha Vantage · <a href="${routeHref('/privacy')}" data-route="/privacy" onclick="navigate('/privacy');return false">Privacy</a> · <a href="${routeHref('/terms')}" data-route="/terms" onclick="navigate('/terms');return false">Terms</a></div>`
+  f.innerHTML = `<div class="container">© ${new Date().getFullYear()} DeltaScreener · Data: Yahoo Finance, SEC EDGAR, FMP, Alpha Vantage · <a href="/pricing" onclick="navigate('/pricing');return false">Pricing</a> · <a href="${routeHref('/privacy')}" data-route="/privacy" onclick="navigate('/privacy');return false">Privacy</a> · <a href="${routeHref('/terms')}" data-route="/terms" onclick="navigate('/terms');return false">Terms</a></div>`
   document.getElementById('app').appendChild(f)
 }
 
@@ -1037,12 +1452,46 @@ const watchlist = {
     list.push(normalized)
     localStorage.setItem('ds-watchlist', JSON.stringify(list))
     if (auth.signedIn()) apiJson('/user/watchlist', normalized).catch(() => {})
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'watchlist_add', { ticker: normalized.ticker, signed_in: auth.signedIn() })
+    }
   },
   remove: t => {
     const ticker = String(t || '').trim().toUpperCase()
     localStorage.setItem('ds-watchlist', JSON.stringify(watchlist.get().filter(x => x.ticker !== ticker)))
     if (auth.signedIn()) apiDelete('/user/watchlist', { ticker }).catch(() => {})
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'watchlist_remove', { ticker, signed_in: auth.signedIn() })
+    }
   }
+}
+
+// Lightweight confirmation toast with next-step actions.
+// actions: [{ label, onClick }]
+function showActionToast(message, actions = []) {
+  const existing = document.getElementById('ds-action-toast')
+  if (existing) existing.remove()
+  const toast = document.createElement('div')
+  toast.id = 'ds-action-toast'
+  toast.className = 'ds-action-toast'
+  toast.innerHTML = `
+    <div class="ds-toast-msg">${message}</div>
+    <div class="ds-toast-actions"></div>
+    <button class="ds-toast-close" aria-label="Dismiss">×</button>
+  `
+  const actionsWrap = toast.querySelector('.ds-toast-actions')
+  actions.forEach(a => {
+    const btn = document.createElement('button')
+    btn.className = 'ds-toast-action'
+    btn.textContent = a.label
+    btn.addEventListener('click', () => { a.onClick?.(); toast.remove() })
+    actionsWrap.appendChild(btn)
+  })
+  toast.querySelector('.ds-toast-close').addEventListener('click', () => toast.remove())
+  document.body.appendChild(toast)
+  requestAnimationFrame(() => toast.classList.add('show'))
+  const timer = setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300) }, 7000)
+  toast.addEventListener('mouseenter', () => clearTimeout(timer))
 }
 
 async function persistUserPreferences(patch = {}) {
@@ -1079,68 +1528,22 @@ export async function renderHomePage(el) {
   el.innerHTML = `
     <section class="landing-hero">
       <div class="container landing-hero-grid">
-        <div class="landing-hero-copy">
-          <div class="landing-hero-topline">
-            <span class="landing-hero-badge">Live US equity intelligence</span>
-            <span class="landing-data-inline">Data from Yahoo Finance · SEC EDGAR · FMP</span>
-          </div>
+        <div class="landing-hero-copy landing-hero-minimal">
           <div class="landing-brand-lockup">
             <div class="landing-brand-mark-wrap">
               ${renderBrandMark({ className: 'landing-brand-mark' })}
             </div>
-            <div class="landing-brand-wordmark">
-              <span class="landing-word-line dark">DELTA</span>
-              <span class="landing-word-line accent">SCREENER</span>
-            </div>
+            <h1 class="landing-brand-wordmark">
+              <span class="sr-only">DeltaScreener — free US stock screener for NYSE &amp; NASDAQ</span>
+              <span class="landing-word-line dark" aria-hidden="true">DELTA</span>
+              <span class="landing-word-line accent" aria-hidden="true">SCREENER</span>
+            </h1>
           </div>
-          <p class="landing-tagline"><span class="landing-tagline-typed">Screen better signals. Catch better stocks.</span></p>
-          <p class="landing-subcopy">Custom filters, 10-year financials, and a fast market dashboard for high-conviction US equity research.</p>
-          <div class="landing-hero-actions">
-            <a href="${routeHref('/screener')}" data-route="/screener" onclick="navigate('/screener');return false" class="btn btn-primary landing-btn-primary">Open Screener →</a>
-            <a href="${routeHref('/watchlist')}" data-route="/watchlist" onclick="navigate('/watchlist');return false" class="btn btn-outline landing-btn-secondary">View Watchlist</a>
-          </div>
-          <div class="landing-trust-row">
-            <div class="landing-trust-pill">Trusted inputs from Yahoo Finance, SEC EDGAR, and FMP.</div>
-            <div class="landing-trust-stats">
-              <div class="landing-trust-stat">
-                <strong>5,000+</strong>
-                <span>US stocks tracked</span>
-              </div>
-              <div class="landing-trust-stat">
-                <strong id="screened-count" data-target="12482">0</strong>
-                <span>screens run today</span>
-              </div>
-            </div>
-          </div>
-          <div class="hero-search landing-hero-search">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="hero-search" placeholder="Search company or ticker: Microsoft, MSFT…" autocomplete="off" />
+          <p class="landing-tagline landing-tagline-minimal">The Cleanest Way to Analyze Stocks</p>
+          <div class="hero-search landing-hero-search hero-search-prominent">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="hero-search" placeholder="Try: Apple, AAPL, Microsoft, NVDA…" autocomplete="off" />
             <div class="hero-search-dropdown hidden" id="hero-dropdown"></div>
-          </div>
-          <div class="popular landing-popular">
-            ${['AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','JPM','V','AMD','BRK.B','NFLX'].map(t => `<a href="${routeHref(`/stock/${t}`)}" class="chip" data-route="/stock/${t}" onclick="navigate('/stock/${t}');return false">${t}</a>`).join('')}
-          </div>
-        </div>
-        <div class="landing-hero-side">
-          <div class="hero-presets-card">
-            <div class="hero-presets-header">
-              <span class="landing-mini-kicker">Popular screens</span>
-              <span class="hero-presets-sub">Click to run instantly</span>
-            </div>
-            ${[
-              { emoji:'🏆', name:'Warren Buffett', color:'#f59e0b', q:'ROE > 20 AND\nAverage ROE 5Years > 18 AND\nROCE > 15 AND\nNet Margin > 15 AND\nDebt to Equity < 0.5 AND\nInterest Coverage Ratio > 5 AND\nMarket Cap > 5000' },
-              { emoji:'🚀', name:'Momentum', color:'#6366f1', q:'Change % > 5 AND\nYOY Qtr profit growth > 20 AND\nYOY Qtr sales growth > 15 AND\nROE > 15 AND\nNet Margin > 8 AND\nMarket Cap > 2000' },
-              { emoji:'📈', name:'High Growth', color:'#10b981', q:'PEG Ratio > 0 AND\nPEG Ratio < 1 AND\nSales growth 3Years > 15 AND\nProfit growth 3Years > 20 AND\nGross Margin > 40 AND\nDebt to Equity < 0.8 AND\nMarket Cap > 1000' },
-              { emoji:'💰', name:'Undervalued', color:'#0f766e', q:'P/E > 0 AND\nP/E < 15 AND\nP/B < 1.5 AND\nCurrent ratio > 2 AND\nEarnings yield > 6 AND\nDebt to Equity < 1 AND\nROE > 10 AND\nMarket Cap > 1000' },
-              { emoji:'💵', name:'Dividend Income', color:'#ec4899', q:'Dividend Yield > 2.5 AND\nDividend Yield < 8 AND\nROE > 12 AND\nNet Margin > 10 AND\nInterest Coverage Ratio > 4 AND\nDebt to Equity < 1 AND\nMarket Cap > 5000' },
-            ].map((s,i) => `
-              <a href="/screener?preset=${i}" data-preset-idx="${i}"
-                 class="hero-preset-row">
-                <span class="hero-preset-icon" style="background:${s.color}22;color:${s.color}">${s.emoji}</span>
-                <span class="hero-preset-label">${s.name}</span>
-                <span class="hero-preset-arrow">→</span>
-              </a>
-            `).join('')}
           </div>
         </div>
       </div>
@@ -1169,6 +1572,19 @@ export async function renderHomePage(el) {
           </div>
           <div id="trending-table"></div>
         </div>
+      </div>
+    </section>
+    <section class="landing-section landing-section-news">
+      <div class="container">
+        <div class="landing-section-head">
+          <div>
+            <span class="landing-section-kicker">Market news</span>
+            <h2>Latest stock market news, all in one place.</h2>
+          </div>
+          <p>Live headlines from across the market — updated throughout the trading day.</p>
+        </div>
+        <div id="home-news" class="news-list"><div class="news-loading">Loading market news…</div></div>
+        <a href="https://stockanalysis.com/news/" class="news-more" target="_blank" rel="noopener">More market news →</a>
       </div>
     </section>
     <section class="landing-section landing-section-presets">
@@ -1207,7 +1623,7 @@ export async function renderHomePage(el) {
               emoji: '💰',
               name: 'Undervalued Gems',
               desc: 'Low P/E, low P/B, strong ROE — fundamentally cheap quality businesses.',
-              color: '#0f766e',
+              color: '#2563eb',
               q: 'P/E > 0 AND\nP/E < 15 AND\nP/B < 1.5 AND\nCurrent ratio > 2 AND\nEarnings yield > 6 AND\nDebt to Equity < 1 AND\nROE > 10 AND\nMarket Cap > 1000'
             },
             {
@@ -1275,6 +1691,7 @@ export async function renderHomePage(el) {
   const hs = document.getElementById('hero-search')
   const hdd = document.getElementById('hero-dropdown')
   wireSearchInput(hs, hdd, 'hero-search')
+  // Middle search
   animateNumericCounter(document.getElementById('screened-count'))
 
   // Wire preset click handlers (avoids JSON.stringify inside innerHTML)
@@ -1333,8 +1750,81 @@ export async function renderHomePage(el) {
     document.getElementById('trending-table').innerHTML = renderHomeTrendingMarkup(HOME_FALLBACK_TRENDING)
     bindRouteElements(document.getElementById('trending-table'))
   }
+
+  // Market news — loaded independently so a news failure never blocks the page.
+  loadHomeNews()
 }
 route('/', renderHomePage)
+
+// ═══════════════════════════════════════════════════════════════════════
+// HOME — STOCK MARKET NEWS
+// ═══════════════════════════════════════════════════════════════════════
+function newsTimeAgo(dateStr) {
+  if (!dateStr) return ''
+  const t = new Date(dateStr.replace(' ', 'T') + (dateStr.includes('Z') ? '' : 'Z')).getTime()
+  if (!t || isNaN(t)) return ''
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000))
+  if (mins < 1) return 'now'
+  if (mins < 60) return mins + 'm'
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return hrs + 'h'
+  const days = Math.round(hrs / 24)
+  return days + 'd'
+}
+function renderHomeNewsMarkup(items = []) {
+  if (!items.length) return `<div class="news-empty">No market news available right now.</div>`
+  return items.map(n => {
+    const time = newsTimeAgo(n.publishedDate)
+    const site = (n.site || n.publisher || '').replace(/^www\./, '')
+    const thumb = n.image ? `<img class="news-thumb" src="${escapeHtml(n.image)}" alt="" loading="lazy" onerror="this.style.display='none'" />` : ''
+    const ticker = n.symbol ? `<span class="news-ticker">${escapeHtml(n.symbol)}</span>` : ''
+    return `<a class="news-row" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">
+      <span class="news-time">${escapeHtml(time)}</span>
+      ${thumb}
+      <span class="news-body">
+        <span class="news-title">${escapeHtml(n.title)}</span>
+        <span class="news-meta">${ticker}${ticker && site ? '<span class="dot">·</span>' : ''}${site ? escapeHtml(site) : ''}</span>
+      </span>
+    </a>`
+  }).join('')
+}
+async function loadHomeNews() {
+  const host = document.getElementById('home-news')
+  if (!host) return
+  try {
+    const res = await api('/market/news?limit=24')
+    const items = (res && res.news) || []
+    host.innerHTML = renderHomeNewsMarkup(items)
+  } catch (e) {
+    host.innerHTML = `<div class="news-empty">Market news is temporarily unavailable.</div>`
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NEWS PAGE — full stock market news feed (/news)
+// ═══════════════════════════════════════════════════════════════════════
+async function renderNewsPage(el) {
+  el.innerHTML = `
+    <div class="container news-page">
+      <div class="news-page-head">
+        <h1 class="news-page-title">Stock Market News</h1>
+        <p class="news-page-sub">The latest US market and company headlines, refreshed throughout the day.</p>
+      </div>
+      <div id="news-page-list" class="news-list">
+        <div class="news-empty">Loading market news…</div>
+      </div>
+    </div>
+  `
+  const host = document.getElementById('news-page-list')
+  try {
+    const res = await api('/market/news?limit=60')
+    const items = (res && res.news) || []
+    host.innerHTML = renderHomeNewsMarkup(items)
+  } catch (e) {
+    host.innerHTML = `<div class="news-empty">Market news is temporarily unavailable. Please try again shortly.</div>`
+  }
+}
+route('/news', renderNewsPage)
 
 // ═══════════════════════════════════════════════════════════════════════
 // STOCK DETAIL PAGE
@@ -1357,6 +1847,9 @@ export async function renderStockPage(el, params) {
   const hash = location.hash.replace('#', '') || 'overview'
   window.scrollTo(0, 0)
   setMeta(buildStockSeoMeta(ticker))
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', 'stock_view', { ticker })
+  }
   
   el.innerHTML = '<div class="spinner"></div>'
   
@@ -1385,12 +1878,8 @@ export async function renderStockPage(el, params) {
     return
   }
 
-  // Normalize data quality issues from FMP API
-  // ROE is stored as decimal ratio (e.g. 1.41 = 141%) while other % metrics are already in % form
-  const fixRoeDecimal = v => (v != null && Math.abs(v) < 10 && Math.abs(v) > 0.001) ? v * 100 : v
   if (overview) {
-    overview.roe = fixRoeDecimal(overview.roe)
-    // Cap absurd ROE values from negative equity distortion
+    // Cap absurd ROE values from negative equity distortion (should already be null from Worker, belt+suspenders)
     if (overview.roe != null && Math.abs(overview.roe) > 999) overview.roe = null
     // Fix name: if API returns ticker symbol as name, substitute known company name
     if (!overview.name || overview.name === ticker || overview.name === ticker.toUpperCase()) {
@@ -1429,7 +1918,6 @@ export async function renderStockPage(el, params) {
     }
   }
   if (ratios) {
-    ratios.roe = fixRoeDecimal(ratios.roe)
     if (ratios.roe != null && Math.abs(ratios.roe) > 999) ratios.roe = null
   }
 
@@ -1443,7 +1931,7 @@ export async function renderStockPage(el, params) {
       <div class="container">
         <div class="stock-title-row">
           <div>
-            <div class="stock-name">${overview.name || ticker}</div>
+            <h1 class="stock-name"><span class="stock-logo-tile" id="stock-logo-tile"><img class="stock-logo" id="stock-logo-img" crossorigin="anonymous" src="https://images.financialmodelingprep.com/symbol/${encodeURIComponent(ticker)}.png" alt="${(overview.name || ticker).replace(/"/g, '&quot;')} logo" loading="eager" onerror="this.closest('.stock-logo-tile').style.display='none'"></span><span class="stock-name-text">${overview.name && overview.name !== ticker ? `${overview.name} (${ticker})` : ticker} Stock</span></h1>
             <div class="stock-meta-row">
               <span class="tag tag-sym">${overview.exchange || 'NYSE/NASDAQ'}: ${ticker}</span>
               ${overview.sector && overview.sector !== '—' ? `<span class="tag tag-accent">${overview.sector}</span>` : ''}
@@ -1465,14 +1953,16 @@ export async function renderStockPage(el, params) {
           <div class="kpi-cell stock-kpi-cell"><div class="kpi-label">Div Yield</div><div class="kpi-value">${fmt.pctAbs(overview.dividendYield)}</div></div>
         </div>
         <div class="stock-actions">
-          <button class="btn ${isWatched ? 'btn-primary' : 'btn-outline'}" id="watch-btn">
-            ${isWatched ? '★ Saved' : '☆ Save'}
+          <button class="btn btn-watch ${isWatched ? 'is-watched' : ''}" id="watch-btn" aria-pressed="${isWatched}">
+            <span class="watch-ico">${isWatched ? '★' : '☆'}</span>
+            <span class="watch-txt">${isWatched ? 'In Your Watchlist' : 'Add to Watchlist'}</span>
           </button>
+          <button class="btn btn-outline" id="alert-btn"><span style="margin-right:6px">🔔</span>Set Alert</button>
           <a class="btn btn-outline" href="https://finance.yahoo.com/quote/${ticker}" target="_blank">Yahoo ↗</a>
           <a class="btn btn-outline" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${ticker}&type=10-K" target="_blank">SEC ↗</a>
         </div>
         <div class="tabs">
-          ${TABS.map(t => `<a href="#${t.id}" class="tab ${t.id === hash ? 'active' : ''}" onclick="loadTab(event,'${ticker}','${t.id}');return false">${t.label}</a>`).join('')}
+          ${TABS.map(t => `<a href="javascript:void(0)" class="tab ${t.id === hash ? 'active' : ''}" onclick="loadTab(event,'${ticker}','${t.id}');return false">${t.label}</a>`).join('')}
         </div>
       </div>
     </div>
@@ -1481,22 +1971,64 @@ export async function renderStockPage(el, params) {
     </div>
   `
   
+  // Tint the logo tile + ring with the logo's own dominant colour.
+  // FMP logo images are already square branded app-icons (e.g. Apple, Tesla),
+  // so we let the image fill the rounded tile edge-to-edge with no per-brand
+  // tinting or thick border — a clean, uniform app-icon look across all stocks.
+
+  // Wire alert button
+  document.getElementById('alert-btn')?.addEventListener('click', () => {
+    openAlertModal({ ticker, name: overview.name, price: overview.price })
+  })
+
   // Wire watchlist
   document.getElementById('watch-btn').addEventListener('click', () => {
-    if (watchlist.has(ticker)) watchlist.remove(ticker)
-    else watchlist.add({ ticker, name: overview.name, exchange: overview.exchange, price: overview.price, change: overview.change, changePct: overview.changePct, addedAt: Date.now() })
-    render()
+    const wasWatched = watchlist.has(ticker)
+    if (wasWatched) {
+      watchlist.remove(ticker)
+      render()
+    } else {
+      watchlist.add({ ticker, name: overview.name, exchange: overview.exchange, price: overview.price, change: overview.change, changePct: overview.changePct, addedAt: Date.now() })
+      render()
+      const displayName = (overview.name && overview.name !== ticker) ? `${ticker}` : ticker
+      showActionToast(`<strong>${displayName} saved</strong> to your watchlist.`, [
+        { label: 'View watchlist', onClick: () => navigate('/watchlist') },
+        { label: 'Set price alert', onClick: () => openAlertModal({ ticker, name: overview.name, price: overview.price }) },
+        { label: 'See peers', onClick: () => { history.replaceState(null, '', location.pathname); renderTab('peers', overview, financials, ratios, ticker); document.getElementById('tab-content')?.scrollIntoView({ behavior:'smooth', block:'start' }) } },
+      ])
+    }
   })
   
   window.loadTab = (ev, tk, tab) => {
     document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'))
     const target = ev?.currentTarget || ev?.target
     if (target?.classList) target.classList.add('active')
-    location.hash = tab
+    // Reflect the active tab in the hash (deep-linkable + survives any re-render),
+    // using replaceState so it does NOT trigger the router/popstate.
+    history.replaceState(null, '', location.pathname + (tab && tab !== 'overview' ? '#' + tab : ''))
     renderTab(tab, overview, financials, ratios, ticker)
   }
   
   renderTab(hash, overview, financials, ratios, ticker)
+
+  // Financials columns are paywalled for free users (recent 5 periods only).
+  // The first render uses the synchronous pro cache, which may be cold. Resolve
+  // Pro status in the background and, if the user is Pro, re-render the current
+  // financials tab so the locked columns unlock without a manual refresh.
+  ;(() => {
+    if (pro.isPro()) return // already unlocked — nothing to do
+    const email = pro.bestKnownEmail()
+    if (!email) return
+    pro.check(email).then(isPro => {
+      if (!isPro) return
+      const active = document.querySelector('.tab.active')?.getAttribute('href')
+      const curTab = (location.hash || '').replace('#', '') || 'overview'
+      const finTabs = ['pnl', 'quarters', 'balance', 'cashflow']
+      if (finTabs.includes(curTab)) {
+        renderTab(curTab, overview, financials, ratios, ticker)
+      }
+    }).catch(() => {})
+  })()
 }
 route('/stock/:ticker', renderStockPage)
 
@@ -1534,7 +2066,21 @@ async function renderTab(tab, overview, financials, ratios, ticker) {
       break
     case 'peers':
       c.innerHTML = '<div class="spinner"></div>'
-      try { const p = await api(`/stock/${ticker}/peers`); renderPeersTab(c, p) } catch { c.innerHTML = '<div class="empty">No peers found</div>' }
+      try {
+        const p = await api(`/stock/${ticker}/peers`)
+        // Enrich peers with ratios (parallel fetches, best-effort)
+        if (p?.peers?.length) {
+          const ratioResults = await Promise.allSettled(
+            p.peers.map(peer => api(`/stock/${peer.ticker}/ratios`))
+          )
+          p.peers = p.peers.map((peer, i) => {
+            const rt = ratioResults[i].status === 'fulfilled' ? ratioResults[i].value : null
+            // Keep the full ratios object so optional "Add Column" fields can read any metric.
+            return { ...peer, roe: rt?.roe, netMargin: rt?.netMargin, salesGrowth: rt?.salesGrowth, debtToEquity: rt?.debtToEquity, _rt: rt || {} }
+          })
+        }
+        renderPeersTab(c, p)
+      } catch { c.innerHTML = '<div class="empty">No peers found</div>' }
       break
     case 'news':
       c.innerHTML = '<div class="spinner"></div>'
@@ -1542,6 +2088,110 @@ async function renderTab(tab, overview, financials, ratios, ticker) {
       break
   }
   bindRouteElements(c)
+}
+
+function makeSparkline(series, width = 80, height = 28) {
+  const vals = (series || []).filter(v => v != null).map(Number)
+  if (vals.length < 2) return ''
+  const min = Math.min(...vals), max = Math.max(...vals)
+  const range = max - min || 1
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * width
+    const y = height - ((v - min) / range) * height
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const lastVal = vals[vals.length - 1]
+  const color = lastVal >= 0 ? '#10b981' : '#ef4444'
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:inline-block;vertical-align:middle;margin-left:8px"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`
+}
+
+// Generate plain-language insight cards from the data we already have,
+// so a stock page never feels empty even when the FMP description is blank.
+function buildStockInsights(ov, fins, rt) {
+  const num = v => (v == null || isNaN(v)) ? null : Number(v)
+  const pe = num(rt?.pe ?? ov?.pe)
+  const pb = num(rt?.pb ?? ov?.pb)
+  const roe = num(rt?.roe ?? ov?.roe)
+  const netMargin = num(rt?.netMargin ?? ov?.netMargin)
+  const opMargin = num(rt?.opMargin ?? ov?.opMargin)
+  const de = num(rt?.debtToEquity ?? ov?.debtToEquity)
+  const divY = num(ov?.dividendYield)
+  const price = num(ov?.price)
+  const hi52 = num(ov?.high52)
+  const lo52 = num(ov?.low52)
+  const sales5 = num(fins?.growth?.salesGrowth?.['5y'])
+  const profit5 = num(fins?.growth?.profitGrowth?.['5y'])
+  const sales3 = num(fins?.growth?.salesGrowth?.['3y'])
+  const profit3 = num(fins?.growth?.profitGrowth?.['3y'])
+
+  const cards = []
+
+  // Valuation
+  if (pe != null || pb != null) {
+    let verdict, tone
+    if (pe != null && pe > 0 && pe < 15) { verdict = 'looks inexpensive'; tone = 'pos' }
+    else if (pe != null && pe > 40) { verdict = 'is priced for high growth'; tone = 'warn' }
+    else if (pe != null) { verdict = 'trades around market-average multiples'; tone = 'neu' }
+    else { verdict = 'is best judged on book value here'; tone = 'neu' }
+    const bits = []
+    if (pe != null) bits.push(`a P/E of ${pe.toFixed(1)}`)
+    if (pb != null) bits.push(`price-to-book of ${pb.toFixed(1)}`)
+    cards.push({ tone, title: 'Valuation', body: `At ${bits.join(' and ')}, the stock ${verdict}. Compare against sector peers before drawing conclusions — multiples mean little in isolation.` })
+  }
+
+  // Growth
+  if (sales5 != null || profit5 != null || sales3 != null || profit3 != null) {
+    const s = sales5 ?? sales3, p = profit5 ?? profit3
+    const period = sales5 != null || profit5 != null ? '5-year' : '3-year'
+    let tone = 'neu', lead
+    if (p != null && p > 15) { tone = 'pos'; lead = 'Profit has compounded strongly' }
+    else if (p != null && p < 0) { tone = 'warn'; lead = 'Profit has contracted' }
+    else { lead = 'Growth has been steady' }
+    const parts = []
+    if (s != null) parts.push(`revenue ${s >= 0 ? 'grew' : 'fell'} ${Math.abs(s).toFixed(1)}% a year`)
+    if (p != null) parts.push(`profit ${p >= 0 ? 'grew' : 'fell'} ${Math.abs(p).toFixed(1)}% a year`)
+    cards.push({ tone, title: `Growth (${period})`, body: `${lead}: ${parts.join(' while ')}. ${p != null && s != null && p > s ? 'Profit outpacing revenue points to improving margins.' : 'Watch whether growth is sustained going forward.'}` })
+  }
+
+  // Profitability / margins
+  if (roe != null || netMargin != null || opMargin != null) {
+    let tone = 'neu', lead
+    if (roe != null && roe > 18) { tone = 'pos'; lead = 'High returns on equity' }
+    else if (roe != null && roe < 8) { tone = 'warn'; lead = 'Modest returns on equity' }
+    else { lead = 'Returns on equity are reasonable' }
+    const parts = []
+    if (roe != null) parts.push(`ROE of ${roe.toFixed(1)}%`)
+    if (opMargin != null) parts.push(`operating margin of ${opMargin.toFixed(1)}%`)
+    if (netMargin != null) parts.push(`net margin of ${netMargin.toFixed(1)}%`)
+    cards.push({ tone, title: 'Profitability', body: `${lead} — ${parts.join(', ')}. Consistent, high margins are a sign of pricing power and operational quality.` })
+  }
+
+  // Balance sheet risk
+  if (de != null) {
+    let tone, body
+    if (de < 0.5) { tone = 'pos'; body = `A debt-to-equity of ${de.toFixed(2)} signals a conservative balance sheet with little leverage risk.` }
+    else if (de > 1.5) { tone = 'warn'; body = `Debt-to-equity of ${de.toFixed(2)} is elevated — the company carries meaningful leverage, which raises risk if earnings weaken or rates rise.` }
+    else { tone = 'neu'; body = `Debt-to-equity of ${de.toFixed(2)} is moderate and broadly typical for the market.` }
+    cards.push({ tone, title: 'Balance sheet', body })
+  }
+
+  // Dividend
+  if (divY != null && divY > 0) {
+    const tone = divY > 6 ? 'warn' : 'pos'
+    cards.push({ tone, title: 'Dividend', body: `Yields ${divY.toFixed(2)}%.${divY > 6 ? ' An unusually high yield can signal a depressed price or payout risk — check the payout ratio and cash flow.' : ' Check the payout ratio and free cash flow to gauge how safe the payout is.'}` })
+  }
+
+  // 52-week position
+  if (price != null && hi52 != null && lo52 != null && hi52 > lo52) {
+    const pos = ((price - lo52) / (hi52 - lo52)) * 100
+    let tone = 'neu', body
+    if (pos >= 85) { tone = 'pos'; body = `Trading near its 52-week high (${pos.toFixed(0)}% of the range) — strong momentum, but less margin of safety.` }
+    else if (pos <= 20) { tone = 'warn'; body = `Trading near its 52-week low (${pos.toFixed(0)}% of the range) — could be a value opportunity or a warning sign. Understand why before buying.` }
+    else { body = `Sits at ${pos.toFixed(0)}% of its 52-week range ($${lo52.toFixed(2)}–$${hi52.toFixed(2)}).` }
+    cards.push({ tone, title: '52-week position', body })
+  }
+
+  return cards
 }
 
 function renderOverviewTab(c, ov, fins, rt) {
@@ -1559,6 +2209,17 @@ function renderOverviewTab(c, ov, fins, rt) {
     ['Op. Margin', fmt.pctAbs(rt?.opMargin ?? ov.opMargin)],
     ['Net Margin', fmt.pctAbs(rt?.netMargin ?? ov.netMargin)],
   ]
+  const insights = buildStockInsights(ov, fins, rt)
+  const coName = (ov.name && ov.name !== ov.ticker) ? ov.name : (ov.ticker || 'This company')
+  const sectorLine = [ov.sector, ov.industry].filter(Boolean).join(' · ')
+  const aboutFallback = (() => {
+    const bits = []
+    bits.push(`${coName} is a publicly traded company${ov.exchange ? ` listed on ${ov.exchange}` : ''}${sectorLine ? ` operating in the ${sectorLine} space` : ''}.`)
+    if (ov.mktCap) bits.push(`It has a market capitalization of ${fmt.compact(ov.mktCap)}.`)
+    if (ov.dividendYield > 0) bits.push(`The stock pays a dividend yielding ${fmt.pctAbs(ov.dividendYield)}.`)
+    bits.push(`Key fundamentals, financial statements, and valuation ratios are summarized below.`)
+    return `<p>${bits.join(' ')}</p>`
+  })()
   c.innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="overview-kpi-grid">
@@ -1570,11 +2231,23 @@ function renderOverviewTab(c, ov, fins, rt) {
         `).join('')}
       </div>
     </div>
+    ${insights.length ? `
+    <div class="card stock-snapshot" style="margin-bottom:16px">
+      <div class="card-hdr"><h2>Snapshot</h2><span style="font-size:12px;color:#6b7280">Auto-generated from the latest financials</span></div>
+      <div class="snapshot-grid">
+        ${insights.map(ins => `
+          <div class="snapshot-item snapshot-${ins.tone}">
+            <div class="snapshot-title">${ins.title}</div>
+            <div class="snapshot-body">${ins.body}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
       <div class="card">
         <div class="card-hdr"><h2>About</h2></div>
         <div class="about">
-          <p>${ov.description || 'No description available.'}</p>
+          ${ov.description ? `<p>${ov.description}</p>` : aboutFallback}
           ${ov.keyPoints?.length ? `<ul>${ov.keyPoints.map(p => `<li>${p}</li>`).join('')}</ul>` : ''}
         </div>
       </div>
@@ -1585,6 +2258,10 @@ function renderOverviewTab(c, ov, fins, rt) {
             ['Exchange', ov.exchange],
             ['Sector', ov.sector],
             ['Industry', ov.industry],
+            ...(ov.ceo ? [['CEO', ov.ceo]] : []),
+            ...(ov.employees ? [['Employees', Number(ov.employees).toLocaleString()]] : []),
+            ...(ov.city || ov.country ? [['Headquarters', [ov.city, ov.country].filter(Boolean).join(', ')]] : []),
+            ...(ov.ipoDate ? [['IPO Year', String(ov.ipoDate).slice(0, 4)]] : []),
             ['Website', ov.website ? `<a href="${ov.website}" target="_blank">Visit ↗</a>` : '—'],
             ['Book Value', fmt.usd(ov.bookValue)],
             ['Avg Volume', ov.avgVolume ? ov.avgVolume.toLocaleString() : '—'],
@@ -1594,7 +2271,43 @@ function renderOverviewTab(c, ov, fins, rt) {
         </div>
       </div>
     </div>
-    ${fins?.balanceSheetYears ? `<div style="margin-top:12px;font-size:12px;color:#9ca3af">Data source: ${fins.balanceSheetSource === 'sec_xbrl' ? 'SEC EDGAR XBRL' : fins.balanceSheetSource} · ${fins.balanceSheetYears} years of balance sheet data</div>` : ''}
+    ${fins?.growth?.roe?.series?.length >= 3 ? `
+    <div class="card" style="margin-top:12px">
+      <div class="card-hdr"><h2>10-Year Trends</h2><span style="font-size:12px;color:#6b7280">Annual · from P&L data</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;padding:8px 4px">
+        ${fins.annual?.headers?.length >= 3 ? `
+        <div>
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Revenue</div>
+          <div style="font-size:13px;color:#d1d5db;display:flex;align-items:center">
+            ${fmt.compactM((fins.annual.sales || []).filter(v=>v!=null).slice(-1)[0])}
+            ${makeSparkline(fins.annual.sales, 80, 28)}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Net Profit</div>
+          <div style="font-size:13px;color:#d1d5db;display:flex;align-items:center">
+            ${fmt.compactM((fins.annual.netProfit || []).filter(v=>v!=null).slice(-1)[0])}
+            ${makeSparkline(fins.annual.netProfit, 80, 28)}
+          </div>
+        </div>` : ''}
+        <div>
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">ROE %</div>
+          <div style="font-size:13px;color:#d1d5db;display:flex;align-items:center">
+            ${fins.growth.roe.lastYear != null ? fins.growth.roe.lastYear.toFixed(1) + '%' : '—'}
+            ${makeSparkline(fins.growth.roe.series, 80, 28)}
+          </div>
+        </div>
+        ${fins.annual?.opm?.length >= 3 ? `
+        <div>
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">OPM %</div>
+          <div style="font-size:13px;color:#d1d5db;display:flex;align-items:center">
+            ${(fins.annual.opm || []).filter(v=>v!=null).slice(-1)[0]?.toFixed(1) ?? '—'}%
+            ${makeSparkline(fins.annual.opm, 80, 28)}
+          </div>
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+    ${fins?.balanceSheetYears ? `<div style="margin-top:12px;font-size:12px;color:#9ca3af">Data source: ${fins.balanceSheetSource === 'sec_xbrl' ? 'SEC EDGAR XBRL' : (String(fins.balanceSheetSource || '').toLowerCase().includes('fmp') ? 'Financial Modeling Prep' : 'Company filings')} · ${fins.balanceSheetYears} years of balance sheet data</div>` : ''}
   `
 }
 
@@ -1826,10 +2539,207 @@ function buildGrowthViewModel(fins) {
   }
 }
 
+// Shared financials table builder — models stockanalysis.com layout:
+// newest period on the left (right after the sticky row-label column),
+// fewer comfortably-spaced columns, older periods reachable via horizontal scroll.
+function buildFinancialsTable(headers, rows, opts = {}) {
+  // Natural order: oldest period on the LEFT, newest on the RIGHT (like a timeline).
+  // The scroll container auto-scrolls fully right on render so the latest period shows
+  // first; scrolling left reveals older periods.
+  const order = headers.map((_, i) => i)
+  // ── Free-tier paywall ──────────────────────────────────────────────
+  // Free users see only the most recent FREE_YEARS periods. Older columns
+  // (the leftmost ones, since newest is on the right) are blurred with a
+  // lock icon; clicking them opens the Pro upgrade modal. Pro users see all.
+  const FREE_YEARS = 5
+  const isProUser = (typeof pro !== 'undefined' && pro.isPro && pro.isPro())
+  const lockedCount = (!isProUser && order.length > FREE_YEARS) ? order.length - FREE_YEARS : 0
+  // The first `lockedCount` columns (oldest) are locked.
+  const isLocked = (colIdx) => colIdx < lockedCount
+  // Drop unit suffixes like " ($M)" from the row label — cleaner, bigger look.
+  const cleanLabel = (s) => String(s).replace(/\s*\(\$?M\)\s*$/i, '').replace(/\s*\(\$\)\s*$/i, '')
+  const cellVal = (v, row) => {
+    if (v == null) return '—'
+    if (row.pct) return Number(v).toFixed(1) + '%'
+    if (row.isEPS) return Number(v).toFixed(2)
+    return fmt.numFull(v)
+  }
+  const colCount = order.length + 1
+  // SVG bar-chart icon (stockanalysis.com style) shown on hover / always on touch.
+  const chartIcon = `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="1" y="8" width="3" height="6" rx="0.5"/><rect x="6.5" y="4" width="3" height="10" rx="0.5"/><rect x="12" y="1.5" width="3" height="12.5" rx="0.5"/></svg>`
+  // Small padlock icon for locked (Pro-only) columns.
+  const lockIcon = `<svg class="fin-lock-ico" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 5a3 3 0 0 1 6 0v3H9V7zm3 7a1.5 1.5 0 0 1 .75 2.8V19a.75.75 0 0 1-1.5 0v-1.2A1.5 1.5 0 0 1 12 14z"/></svg>`
+  return `
+    <div class="tbl-scroll fin-scroll" data-fin-scroll="1">
+      <table class="tbl fin-tbl" data-fin-chartable="1">
+        <thead>
+          <tr>
+            <th>${opts.firstCol || 'Item'}</th>
+            ${order.map((i, ci) => isLocked(ci)
+              ? `<th class="fin-locked" data-fin-lock="1" title="Upgrade to Pro to unlock all history"><span class="fin-lock-val">${headers[i]}</span>${lockIcon}</th>`
+              : `<th>${headers[i]}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, ri) => {
+            const series = order.map(i => {
+              const v = (r.data || [])[i]
+              return { label: headers[i], value: v == null ? null : Number(v) }
+            })
+            const hasData = series.some(p => p.value != null && isFinite(p.value))
+            const suffix = r.pct ? '%' : (r.isEPS ? '' : '')
+            const fmtKind = r.pct ? 'pct' : (r.isEPS ? 'eps' : 'num')
+            const seriesAttr = hasData
+              ? ` data-chart-series='${encodeURIComponent(JSON.stringify(series))}' data-chart-title="${cleanLabel(r.label).replace(/"/g, '&quot;')}" data-chart-suffix="${suffix}" data-chart-kind="${fmtKind}"`
+              : ''
+            return `
+            <tr class="${r.bold ? 'row-bold' : ''}" data-fin-row="${ri}">
+              <td>
+                <span class="fin-label-wrap">
+                  <span class="fin-label-text">${cleanLabel(r.label)}</span>
+                  ${hasData ? `<button type="button" class="fin-chart-btn" title="Show chart" aria-label="Show ${cleanLabel(r.label)} chart"${seriesAttr}>${chartIcon}</button>` : ''}
+                </span>
+              </td>
+              ${order.map((i, ci) => {
+                const v = (r.data || [])[i]
+                // Only colorize growth/percent rows (green up, red down) — keep raw $ values neutral.
+                const cls = r.colorize && r.pct && v != null ? (v > 0 ? 'up' : v < 0 ? 'dn' : '') : ''
+                if (isLocked(ci)) {
+                  return `<td class="fin-locked ${cls}" data-fin-lock="1"><span class="fin-lock-val">${cellVal(v, r)}</span></td>`
+                }
+                return `<td class="${cls}">${cellVal(v, r)}</td>`
+              }).join('')}
+            </tr>
+            <tr class="fin-chart-row" data-fin-chart-for="${ri}" hidden>
+              <td colspan="${colCount}"><div class="fin-chart-host"></div></td>
+            </tr>
+          `}).join('')}
+        </tbody>
+      </table>
+    </div>
+  `
+}
+
+// Render an inline bar chart (hand-rolled SVG, theme-aware) for one financial row's
+// series across periods. Newest period is on the right, matching the table column order.
+function buildFinRowBarChart(series, opts = {}) {
+  const pts = (series || []).filter(p => p && p.value != null && isFinite(p.value))
+  if (!pts.length) return '<div class="fin-chart-empty">No chartable data</div>'
+  const kind = opts.kind || 'num'
+  const suffix = opts.suffix || ''
+  const fmtVal = (v) => {
+    if (kind === 'pct') return v.toFixed(1) + '%'
+    if (kind === 'eps') return v.toFixed(2)
+    return fmt.numFull(v)
+  }
+  const W = Math.max(420, pts.length * 78 + 60), H = 260
+  const padL = 8, padR = 8, padT = 24, padB = 46
+  const plotW = W - padL - padR, plotH = H - padT - padB
+  const vals = pts.map(p => p.value)
+  let max = Math.max(...vals, 0), min = Math.min(...vals, 0)
+  if (max === min) { max = max + 1; min = min - 1 }
+  const range = max - min
+  const y0 = padT + (max / range) * plotH // y of the zero baseline
+  const slot = plotW / pts.length
+  const bw = Math.min(48, slot * 0.6)
+  const bars = pts.map((p, idx) => {
+    const cx = padL + slot * idx + slot / 2
+    const x = cx - bw / 2
+    const vh = (Math.abs(p.value) / range) * plotH
+    const y = p.value >= 0 ? y0 - vh : y0
+    const pos = p.value >= 0
+    const labelY = pos ? y - 6 : y + vh + 14
+    const shortLabel = String(p.label).replace(/^(FY|Q)\s*/i, '').slice(0, 8)
+    return `
+      <g class="fin-bar ${pos ? 'pos' : 'neg'}">
+        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, vh).toFixed(1)}" rx="2"></rect>
+        <text class="fin-bar-val" x="${cx.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle">${fmtVal(p.value)}</text>
+        <text class="fin-bar-x" x="${cx.toFixed(1)}" y="${(H - 16).toFixed(1)}" text-anchor="middle">${shortLabel}</text>
+      </g>`
+  }).join('')
+  const zeroLine = min < 0 ? `<line class="fin-chart-zero" x1="${padL}" y1="${y0.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y0.toFixed(1)}"></line>` : ''
+  return `
+    <div class="fin-chart-title">${opts.title || ''}${suffix ? ` (${suffix === '%' ? 'percent' : suffix})` : ''}</div>
+    <div class="fin-chart-svgwrap">
+      <svg class="fin-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">
+        ${zeroLine}
+        ${bars}
+      </svg>
+    </div>`
+}
+
+// Delegated handler: clicking a row's chart button toggles its inline chart row.
+function wireFinChartToggles(root) {
+  const scope = root || document
+  scope.querySelectorAll('table[data-fin-chartable="1"]').forEach(tbl => {
+    if (tbl.dataset.finChartWired === '1') return
+    tbl.dataset.finChartWired = '1'
+    tbl.addEventListener('click', (e) => {
+      // Locked (Pro-only) column → open the upgrade modal.
+      const lockCell = e.target.closest('[data-fin-lock="1"]')
+      if (lockCell && tbl.contains(lockCell)) {
+        e.preventDefault()
+        try { pro.showUpgradeModal() } catch (err) {}
+        return
+      }
+      const btn = e.target.closest('.fin-chart-btn')
+      if (!btn || !tbl.contains(btn)) return
+      e.preventDefault()
+      const tr = btn.closest('tr[data-fin-row]')
+      if (!tr) return
+      const ri = tr.getAttribute('data-fin-row')
+      const chartRow = tbl.querySelector(`tr.fin-chart-row[data-fin-chart-for="${ri}"]`)
+      if (!chartRow) return
+      const host = chartRow.querySelector('.fin-chart-host')
+      const isOpen = !chartRow.hidden
+      if (isOpen) {
+        chartRow.hidden = true
+        btn.classList.remove('active')
+        return
+      }
+      // Close any other open chart in this table (one at a time).
+      tbl.querySelectorAll('tr.fin-chart-row:not([hidden])').forEach(r => { r.hidden = true })
+      tbl.querySelectorAll('.fin-chart-btn.active').forEach(b => b.classList.remove('active'))
+      try {
+        const series = JSON.parse(decodeURIComponent(btn.getAttribute('data-chart-series') || '[]'))
+        host.innerHTML = buildFinRowBarChart(series, {
+          title: btn.getAttribute('data-chart-title') || '',
+          suffix: btn.getAttribute('data-chart-suffix') || '',
+          kind: btn.getAttribute('data-chart-kind') || 'num',
+        })
+      } catch (err) {
+        host.innerHTML = '<div class="fin-chart-empty">Unable to render chart</div>'
+      }
+      chartRow.hidden = false
+      btn.classList.add('active')
+      // Pin the chart panel to the visible scroll viewport width so all bars are on-screen.
+      try {
+        const scroller = tbl.closest('.fin-scroll')
+        if (scroller && host) {
+          const vw = scroller.clientWidth
+          if (vw) host.style.setProperty('--fin-vw', vw + 'px')
+          host.scrollLeft = 0
+        }
+      } catch (e) {}
+    })
+  })
+}
+
+// After a financials table renders, scroll its container fully right so the newest period is visible,
+// and wire up the per-row chart toggles.
+function scrollFinTablesToLatest(root) {
+  try {
+    (root || document).querySelectorAll('[data-fin-scroll="1"]').forEach(el => {
+      el.scrollLeft = el.scrollWidth
+    })
+  } catch (e) {}
+  try { wireFinChartToggles(root) } catch (e) {}
+}
+
 function renderPLTab(c, fins, type) {
   const data = type === 'quarterly' ? fins?.quarterly : fins?.annual
   if (!data?.headers?.length) { c.innerHTML = '<div class="card"><div class="empty">No data available</div></div>'; return }
-  
+
   const rows = [
     { label: 'Revenue ($M)', data: data.sales, bold: true },
     { label: 'Expenses ($M)', data: data.expenses },
@@ -1842,45 +2752,20 @@ function renderPLTab(c, fins, type) {
     { label: 'Tax %', data: data.tax, pct: true },
     { label: 'Net Profit ($M)', data: data.netProfit, bold: true, colorize: true },
     { label: 'EPS ($)', data: data.eps, isEPS: true },
+    ...(data.dividendPayout?.some(v => v != null) ? [{ label: 'Dividend Payout %', data: data.dividendPayout, pct: true }] : []),
   ]
-  
-  const cellVal = (v, row) => {
-    if (v == null) return '—'
-    if (row.pct) return Number(v).toFixed(1) + '%'
-    if (row.isEPS) return Number(v).toFixed(2)
-    return fmt.numFull(v)
-  }
-  
+
   c.innerHTML = `
     <div class="card">
       <div class="card-hdr">
         <h2>${type === 'quarterly' ? 'Quarterly Results' : 'Profit & Loss'}</h2>
-        <span style="font-size:12px;color:#6b7280">Annual · USD Millions · ${data.headers.length} years</span>
+        <span style="font-size:12px;color:#6b7280">${type === 'quarterly' ? 'Quarterly' : 'Annual'} · USD Millions · ${data.headers.length} ${type === 'quarterly' ? 'quarters' : 'years'} · ← scroll for older periods</span>
       </div>
-      <div class="tbl-scroll">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Item</th>
-              ${data.headers.map(h => `<th>${h}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr class="${r.bold ? 'row-bold' : ''}">
-                <td>${r.label}</td>
-                ${(r.data || []).map(v => {
-                  const cls = r.colorize ? (v > 0 ? 'up' : v < 0 ? 'dn' : '') : ''
-                  return `<td class="${cls}">${cellVal(v, r)}</td>`
-                }).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+      ${buildFinancialsTable(data.headers, rows)}
       ${type === 'annual' ? renderGrowthRates(buildGrowthViewModel(fins)) : ''}
     </div>
   `
+  scrollFinTablesToLatest(c)
 }
 
 function renderGrowthRates(growth) {
@@ -1929,28 +2814,12 @@ function renderBalanceTab(c, fins) {
     <div class="card">
       <div class="card-hdr">
         <h2>Balance Sheet</h2>
-        <span style="font-size:12px;color:#6b7280">Annual · USD Millions · ${data.headers.length} years</span>
+        <span style="font-size:12px;color:#6b7280">Annual · USD Millions · ${data.headers.length} years · ← scroll for older periods</span>
       </div>
-      <div class="tbl-scroll">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Item</th>
-              ${data.headers.map(h => `<th>${h}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr class="${r.bold ? 'row-bold' : ''}">
-                <td>${r.label}</td>
-                ${(r.data || []).map(v => `<td>${fmt.numFull(v)}</td>`).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+      ${buildFinancialsTable(data.headers, rows)}
     </div>
   `
+  scrollFinTablesToLatest(c)
 }
 
 function renderCashflowTab(c, fins) {
@@ -1969,31 +2838,12 @@ function renderCashflowTab(c, fins) {
     <div class="card">
       <div class="card-hdr">
         <h2>Cash Flow Statement</h2>
-        <span style="font-size:12px;color:#6b7280">Annual · USD Millions · ${data.headers.length} years</span>
+        <span style="font-size:12px;color:#6b7280">Annual · USD Millions · ${data.headers.length} years · ← scroll for older periods</span>
       </div>
-      <div class="tbl-scroll">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Item</th>
-              ${data.headers.map(h => `<th>${h}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr class="${r.bold ? 'row-bold' : ''}">
-                <td>${r.label}</td>
-                ${(r.data || []).map(v => {
-                  const cls = r.colorize && v != null ? (v > 0 ? 'up' : v < 0 ? 'dn' : '') : ''
-                  return `<td class="${cls}">${fmt.numFull(v)}</td>`
-                }).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+      ${buildFinancialsTable(data.headers, rows)}
     </div>
   `
+  scrollFinTablesToLatest(c)
 }
 
 function renderRatiosTab(c, rt, ov) {
@@ -2027,6 +2877,21 @@ function renderRatiosTab(c, rt, ov) {
       ['Debt/Assets', fmt.num(rt.debtToAssets)],
       ['Interest Coverage', rt.interestCoverage == null ? '—' : rt.interestCoverage.toFixed(1) + 'x'],
     ]},
+    { title: 'Stock Returns', items: [
+      ['1 Year Return', rt.return1y != null ? (rt.return1y > 0 ? '+' : '') + rt.return1y.toFixed(1) + '%' : '—'],
+      ['3 Year Return', rt.return3y != null ? (rt.return3y > 0 ? '+' : '') + rt.return3y.toFixed(1) + '%' : '—'],
+      ['5 Year Return', rt.return5y != null ? (rt.return5y > 0 ? '+' : '') + rt.return5y.toFixed(1) + '%' : '—'],
+      ['3M Return', rt.return3m != null ? (rt.return3m > 0 ? '+' : '') + rt.return3m.toFixed(1) + '%' : '—'],
+      ['6M Return', rt.return6m != null ? (rt.return6m > 0 ? '+' : '') + rt.return6m.toFixed(1) + '%' : '—'],
+    ]},
+    { title: 'Growth (CAGR)', items: [
+      ['Sales Growth 3Y', rt.salesGrowth3y != null ? (rt.salesGrowth3y > 0 ? '+' : '') + rt.salesGrowth3y.toFixed(1) + '%' : '—'],
+      ['Sales Growth 5Y', rt.salesGrowth5y != null ? (rt.salesGrowth5y > 0 ? '+' : '') + rt.salesGrowth5y.toFixed(1) + '%' : '—'],
+      ['Profit Growth 3Y', rt.profitGrowth3y != null ? (rt.profitGrowth3y > 0 ? '+' : '') + rt.profitGrowth3y.toFixed(1) + '%' : '—'],
+      ['Profit Growth 5Y', rt.profitGrowth5y != null ? (rt.profitGrowth5y > 0 ? '+' : '') + rt.profitGrowth5y.toFixed(1) + '%' : '—'],
+      ['Avg ROE 3Y', rt.avgRoe3y != null ? rt.avgRoe3y.toFixed(1) + '%' : '—'],
+      ['Avg ROE 5Y', rt.avgRoe5y != null ? rt.avgRoe5y.toFixed(1) + '%' : '—'],
+    ]},
   ]
   
   c.innerHTML = `
@@ -2047,7 +2912,8 @@ function renderRatiosTab(c, rt, ov) {
 }
 
 function renderOwnershipTab(c, sh) {
-  if (!sh?.institutional?.length && !sh?.ownership?.length && !sh?.insiders?.length) {
+  const hasAny = sh?.institutional?.length || sh?.ownership?.length || sh?.insiders?.length || sh?.history?.length || sh?.secShares?.length || sh?.secActivity?.length || sh?.secFilings?.length
+  if (!hasAny) {
     c.innerHTML = `
       <div class="card">
         <div class="empty">
@@ -2059,6 +2925,9 @@ function renderOwnershipTab(c, sh) {
     return
   }
   c.innerHTML = `
+    ${renderOwnershipHistory(sh.history)}
+    ${renderSecSharesTrend(sh.secShares, sh.secEntity)}
+    ${renderSecActivity(sh.secActivity)}
     ${sh.ownership?.length ? `
       <div class="ratios-grid" style="margin-bottom:12px">
         ${sh.ownership.map(o => `
@@ -2120,30 +2989,158 @@ function renderOwnershipTab(c, sh) {
         </div>
       </div>
     ` : ''}
+    ${sh.secFilings?.length ? `
+      <div class="card" style="margin-top:12px">
+        <div class="card-hdr">
+          <h2>Ownership Filings (SEC EDGAR)</h2>
+          <span style="font-size:12px;color:#6b7280">${sh.secEntity?.name ? escapeHtml(sh.secEntity.name) + ' · ' : ''}CIK ${sh.secEntity?.cik || '—'}</span>
+        </div>
+        <div style="font-size:12px;color:#9ca3af;padding:0 4px 8px">Provider holder tables were unavailable, so these are the latest insider (Forms 3/4/5) and &gt;5% beneficial-owner (SC 13D/G) filings direct from SEC EDGAR.</div>
+        <div class="tbl-scroll">
+          <table class="tbl screener-results-table">
+            <thead><tr><th>Form</th><th>Filed</th><th>Document</th></tr></thead>
+            <tbody>
+              ${sh.secFilings.map(f => `
+                <tr>
+                  <td><strong>${escapeHtml(f.form || '—')}</strong></td>
+                  <td style="color:#9ca3af;font-size:12px">${f.date || '—'}</td>
+                  <td>${f.url ? `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener" style="color:#2dd4bf">View filing ↗</a>` : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : ''}
   `
 }
 
-function renderPeersTab(c, p) {
-  if (!p?.peers?.length) { c.innerHTML = '<div class="card"><div class="empty">No peers found</div></div>'; return }
-  c.innerHTML = `
-    <div class="card">
-      <div class="card-hdr"><h2>Peer Comparison</h2></div>
+// Quarter-by-quarter institutional ownership trend (Screener.in-style).
+// `history` arrives oldest→newest; we render newest→oldest with QoQ deltas.
+function renderOwnershipHistory(history) {
+  if (!history?.length) return ''
+  const rows = history.slice().reverse()
+  const q = d => {
+    if (!d) return '—'
+    const dt = new Date(d)
+    if (isNaN(dt)) return d
+    return `Q${Math.floor(dt.getMonth() / 3) + 1} ${dt.getFullYear()}`
+  }
+  const deltaCell = (cur, prev, fmtFn) => {
+    if (cur == null) return '<td>—</td>'
+    if (prev == null) return `<td>${fmtFn(cur)}</td>`
+    const diff = cur - prev
+    const cls = diff > 0 ? 'up' : diff < 0 ? 'dn' : ''
+    const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : ''
+    return `<td>${fmtFn(cur)} <span class="${cls}" style="font-size:11px">${arrow}</span></td>`
+  }
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hdr">
+        <h2>Institutional Ownership Trend</h2>
+        <span style="font-size:12px;color:#6b7280">Last ${rows.length} quarters · FMP 13F</span>
+      </div>
       <div class="tbl-scroll">
         <table class="tbl">
           <thead>
-            <tr>
-              <th>Company</th><th>Price</th><th>Change %</th><th>Market Cap</th><th>P/E</th><th>Div Yld</th>
-            </tr>
+            <tr><th>Quarter</th><th>% Held</th><th>Investors</th><th>Value</th><th>New</th><th>Closed</th><th>Increased</th><th>Reduced</th></tr>
           </thead>
           <tbody>
-            ${p.peers.map(x => `
+            ${rows.map((r, i) => {
+              const prev = rows[i + 1] || {}
+              return `
+                <tr>
+                  <td><strong>${q(r.date)}</strong></td>
+                  ${deltaCell(r.ownershipPct, prev.ownershipPct, v => fmt.pctAbs(v))}
+                  ${deltaCell(r.investors, prev.investors, v => fmt.numFull(v))}
+                  <td>${r.value != null ? fmt.compact(r.value) : '—'}</td>
+                  <td class="up">${r.newPositions != null ? r.newPositions : '—'}</td>
+                  <td class="dn">${r.closedPositions != null ? r.closedPositions : '—'}</td>
+                  <td class="up">${r.increasedPositions != null ? r.increasedPositions : '—'}</td>
+                  <td class="dn">${r.reducedPositions != null ? r.reducedPositions : '—'}</td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
+// Shares-outstanding trend straight from SEC XBRL filings (free, no FMP).
+// Falling shares = buybacks; rising = dilution. `secShares` is oldest→newest.
+function renderSecSharesTrend(secShares, secEntity) {
+  if (!secShares?.length) return ''
+  const rows = secShares.slice().reverse() // newest first
+  const q = d => {
+    if (!d) return '—'
+    const dt = new Date(d)
+    if (isNaN(dt)) return d
+    return `Q${Math.floor(dt.getUTCMonth() / 3) + 1} ${dt.getUTCFullYear()}`
+  }
+  const first = secShares[0]?.shares
+  const last = secShares[secShares.length - 1]?.shares
+  const totalChange = (first != null && last != null && first !== 0)
+    ? ((last - first) / first) * 100 : null
+  const summary = totalChange != null
+    ? `${totalChange < 0 ? 'Buyback' : totalChange > 0 ? 'Dilution' : 'Flat'} ${totalChange > 0 ? '+' : ''}${totalChange.toFixed(1)}% over ${secShares.length}q`
+    : `${rows.length} periods`
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hdr">
+        <h2>Shares Outstanding Trend</h2>
+        <span style="font-size:12px;color:#6b7280">${summary} · SEC EDGAR${secEntity?.cik ? ' · CIK ' + secEntity.cik : ''}</span>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr><th>Period</th><th>Shares Outstanding</th><th>QoQ Change</th><th>Filing</th></tr></thead>
+          <tbody>
+            ${rows.map((r, i) => {
+              const prev = rows[i + 1]
+              let change = '—', cls = ''
+              if (prev?.shares != null && r.shares != null && prev.shares !== 0) {
+                const pc = ((r.shares - prev.shares) / prev.shares) * 100
+                cls = pc < 0 ? 'up' : pc > 0 ? 'dn' : '' // fewer shares = bullish (buyback)
+                change = `${pc > 0 ? '+' : ''}${pc.toFixed(2)}% ${pc < 0 ? '▼' : pc > 0 ? '▲' : ''}`
+              }
+              return `
+                <tr>
+                  <td><strong>${q(r.date)}</strong>${r.period === 'FY' ? ' <span style="font-size:10px;color:#6b7280">FY</span>' : ''}</td>
+                  <td>${r.shares != null ? fmt.numFull(r.shares) : '—'}</td>
+                  <td class="${cls}">${change}</td>
+                  <td style="color:#9ca3af;font-size:12px">${r.form || '—'}</td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:#9ca3af;padding:6px 4px 0">A declining share count signals buybacks (shareholder-friendly); a rising count signals dilution.</div>
+    </div>
+  `
+}
+
+// Quarterly insider (Forms 3/4/5) and >5% owner (SC 13D/G) filing activity.
+// `secActivity` is oldest→newest.
+function renderSecActivity(secActivity) {
+  if (!secActivity?.length) return ''
+  const rows = secActivity.slice().reverse()
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hdr">
+        <h2>Insider Filing Activity</h2>
+        <span style="font-size:12px;color:#6b7280">Per quarter · SEC EDGAR</span>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr><th>Quarter</th><th>Insider Filings (3/4/5)</th><th>Major Holder (13D/G)</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
               <tr>
-                <td data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" style="cursor:pointer"><a href="${routeHref(`/stock/${x.ticker}`)}" data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" class="stock-link"><strong style="color:#2962ff">${x.ticker}</strong> ${x.name || ''}</a></td>
-                <td>${fmt.usd(x.price)}</td>
-                <td class="${fmt.pctClass(x.changePct)}">${fmt.pct(x.changePct)}</td>
-                <td>${fmt.compact(x.mktCap)}</td>
-                <td>${fmt.num(x.pe)}</td>
-                <td>${fmt.pctAbs(x.dividendYield)}</td>
+                <td><strong>${escapeHtml(r.quarter || '—')}</strong></td>
+                <td>${r.insider != null ? r.insider : '—'}</td>
+                <td>${r.major != null ? r.major : '—'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -2151,6 +3148,115 @@ function renderPeersTab(c, p) {
       </div>
     </div>
   `
+}
+
+// Optional columns the user can add to the Peer Comparison table via "+ Add Column".
+// `get(x)` reads from the peer row (x._rt holds the full ratios object).
+const PEER_OPTIONAL_COLS = [
+  { id: 'pb',           label: 'P/B',          get: x => x._rt?.pb,            fmt: v => fmt.num(v) },
+  { id: 'ps',           label: 'P/S',          get: x => x._rt?.ps,            fmt: v => fmt.num(v) },
+  { id: 'peg',          label: 'PEG',          get: x => x._rt?.peg,           fmt: v => fmt.num(v) },
+  { id: 'evEbitda',     label: 'EV/EBITDA',    get: x => x._rt?.evEbitda,      fmt: v => fmt.num(v) },
+  { id: 'grossMargin',  label: 'Gross Mgn',    get: x => x._rt?.grossMargin,   fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'opMargin',     label: 'Op. Margin',   get: x => x._rt?.opMargin,      fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'roa',          label: 'ROA %',        get: x => x._rt?.roa,           fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'roce',         label: 'ROCE %',       get: x => x._rt?.roce,          fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'currentRatio', label: 'Current R.',   get: x => x._rt?.currentRatio,  fmt: v => fmt.num(v) },
+  { id: 'quickRatio',   label: 'Quick R.',     get: x => x._rt?.quickRatio,    fmt: v => fmt.num(v) },
+  { id: 'fcfYield',     label: 'FCF Yield',    get: x => x._rt?.fcfYield,      fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'earningsYield',label: 'Earn. Yield',  get: x => x._rt?.earningsYield, fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+]
+
+function getPeerActiveCols() {
+  try {
+    const raw = sessionStorage.getItem('ds-peer-cols')
+    if (!raw) return []
+    return JSON.parse(raw).filter(id => PEER_OPTIONAL_COLS.some(col => col.id === id))
+  } catch { return [] }
+}
+function setPeerActiveCols(ids) {
+  try { sessionStorage.setItem('ds-peer-cols', JSON.stringify(ids)) } catch {}
+}
+
+function renderPeersTab(c, p) {
+  if (!p?.peers?.length) { c.innerHTML = '<div class="card"><div class="empty">No peers found</div></div>'; return }
+  c.__peerData = p
+  drawPeersTable(c, p)
+}
+
+function drawPeersTable(c, p) {
+  const activeIds = getPeerActiveCols()
+  const activeCols = activeIds.map(id => PEER_OPTIONAL_COLS.find(col => col.id === id)).filter(Boolean)
+  const cell = (v) => v == null || v === '' || (typeof v === 'number' && !isFinite(v)) ? '—' : v
+  c.innerHTML = `
+    <div class="card">
+      <div class="card-hdr peer-hdr">
+        <h2>Peer Comparison</h2>
+        <div class="peer-addcol-wrap">
+          <button type="button" id="peer-addcol-btn" class="peer-addcol-btn">＋ Add Column</button>
+          <div id="peer-addcol-menu" class="peer-addcol-menu" hidden>
+            <div class="peer-addcol-menu-hd">Add data columns</div>
+            ${PEER_OPTIONAL_COLS.map(col => `
+              <label class="peer-addcol-opt">
+                <input type="checkbox" value="${col.id}" ${activeIds.includes(col.id) ? 'checked' : ''}>
+                <span>${col.label}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Company</th><th>Price</th><th>Chg %</th><th>Mkt Cap</th><th>P/E</th><th>ROE %</th><th>Net Margin</th><th>Sales Gr.</th><th>D/E</th><th>Div Yld</th>
+              ${activeCols.map(col => `<th>${col.label}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${p.peers.map(x => `
+              <tr>
+                <td><a href="${routeHref(`/stock/${x.ticker}`)}" data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" class="stock-link"><strong style="color:#2dd4bf">${x.ticker}</strong></a></td>
+                <td>${fmt.usd(x.price)}</td>
+                <td class="${fmt.pctClass(x.changePct)}">${fmt.pct(x.changePct)}</td>
+                <td>${fmt.compact(x.mktCap)}</td>
+                <td>${fmt.num(x.pe)}</td>
+                <td class="${x.roe != null ? (x.roe >= 15 ? 'up' : '') : ''}">${x.roe != null ? x.roe.toFixed(1) + '%' : '—'}</td>
+                <td>${x.netMargin != null ? x.netMargin.toFixed(1) + '%' : '—'}</td>
+                <td class="${x.salesGrowth != null ? (x.salesGrowth >= 0 ? 'up' : 'dn') : ''}">${x.salesGrowth != null ? (x.salesGrowth > 0 ? '+' : '') + x.salesGrowth.toFixed(1) + '%' : '—'}</td>
+                <td>${x.debtToEquity != null ? x.debtToEquity.toFixed(2) : '—'}</td>
+                <td>${fmt.pctAbs(x.dividendYield)}</td>
+                ${activeCols.map(col => `<td>${cell(col.fmt(col.get(x)))}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+  wirePeerAddColumn(c, p)
+  bindRouteElements(c)
+}
+
+function wirePeerAddColumn(c, p) {
+  const btn = c.querySelector('#peer-addcol-btn')
+  const menu = c.querySelector('#peer-addcol-menu')
+  if (!btn || !menu) return
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    menu.hidden = !menu.hidden
+  })
+  menu.addEventListener('click', (e) => e.stopPropagation())
+  menu.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const ids = [...menu.querySelectorAll('input[type="checkbox"]:checked')].map(i => i.value)
+      setPeerActiveCols(ids)
+      drawPeersTable(c, p) // re-render with new columns; menu reopens closed
+    })
+  })
+  // Close the menu when clicking elsewhere.
+  const onDoc = (e) => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) menu.hidden = true }
+  document.addEventListener('click', onDoc)
 }
 
 function renderNewsTab(c, n) {
@@ -2232,8 +3338,65 @@ const METRICS = {
   'Average ROE 3Years':    { key: 'avgRoe3y', unit: '%' },
   'Average ROE 5Years':    { key: 'avgRoe5y', unit: '%' },
   'Change %':              { key: 'changePct', unit: '%' },
+  'Volume':                { key: 'volume', unit: '' },
+  'Average Volume':        { key: 'avgVolume', unit: '' },
+  '52 Week High':          { key: 'yearHigh', unit: '$' },
+  '52 Week Low':           { key: 'yearLow', unit: '$' },
+  'Beta':                  { key: 'beta', unit: '' },
+  'Operating Margin':      { key: 'opMargin', unit: '%' },
+  'Enterprise Value':      { key: 'enterpriseValue', unit: '$' },
+  'EV/Sales':              { key: 'evSales', unit: 'x' },
+  'P/FCF':                 { key: 'pFcf', unit: 'x' },
+  'P/OCF':                 { key: 'pOcf', unit: 'x' },
+  'Earnings Yield':        { key: 'earningsYield', unit: '%' },
+  'Quick Ratio':           { key: 'quickRatio', unit: '' },
+  'Interest Coverage':     { key: 'interestCoverage', unit: 'x' },
+  'Payout Ratio':          { key: 'payoutRatio', unit: '%' },
+  'Book Value Per Share':  { key: 'bookValuePs', unit: '$' },
+  'EBITDA':                { key: 'ebitda', unit: '$' },
+  'Free Cash Flow':        { key: 'freeCashFlow', unit: '$' },
+  'Operating Cash Flow':   { key: 'operatingCashFlow', unit: '$' },
+  'Total Debt':            { key: 'totalDebt', unit: '$' },
+  'Total Cash':            { key: 'totalCash', unit: '$' },
+  'Net Debt':              { key: 'netDebt', unit: '$' },
   'Sector':                { key: 'sector', unit: '', string: true },
+  'Country':               { key: 'country', unit: '', string: true },
 }
+// Ratio groups for the "Add Ratio" picker — standard finance categories.
+// Each item is the canonical metric name the query parser recognizes.
+const RATIO_GROUPS = [
+  { group: 'Size & Price', items: [
+    'Market Capitalization', 'Current price', 'Change %', 'Enterprise Value',
+    '52 Week High', '52 Week Low', 'Volume', 'Average Volume', 'Beta',
+  ]},
+  { group: 'Valuation', items: [
+    'Price to Earning', 'Price to book value', 'Price to Sales', 'PEG Ratio',
+    'EV/EBITDA', 'EV/Revenue', 'EV/Sales', 'Price to Free Cash Flow',
+    'P/OCF', 'Earnings yield', 'Book Value Per Share',
+  ]},
+  { group: 'Profitability', items: [
+    'Return on Equity', 'Return on capital employed', 'Return on Assets',
+    'Net Margin', 'OPM', 'Gross Margin', 'Average ROE 3Years', 'Average ROE 5Years',
+    'EPS',
+  ]},
+  { group: 'Growth', items: [
+    'Sales growth', 'Profit growth', 'YOY Qtr sales growth', 'YOY Qtr profit growth',
+    'Sales growth 3Years', 'Sales growth 5Years', 'Profit growth 3Years', 'Profit growth 5Years',
+  ]},
+  { group: 'Financial Health', items: [
+    'Debt to Equity', 'Current ratio', 'Quick ratio', 'Cash ratio',
+    'Interest Coverage Ratio', 'Debt', 'Total Debt', 'Total Cash', 'Net Debt',
+    'Payout Ratio', 'Dividend Yield',
+  ]},
+  { group: 'Cash Flow & Earnings', items: [
+    'EBITDA', 'Free Cash Flow', 'Operating Cash Flow',
+    'Sales', 'Profit after tax', 'Sales latest quarter', 'PAT latest quarter',
+  ]},
+  { group: 'Classification', items: [
+    'Sector', 'Country',
+  ]},
+]
+
 const normalizeMetricName = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const METRIC_LOOKUP = Object.entries(METRICS).reduce((acc, [name, def]) => {
   acc[normalizeMetricName(name)] = { name, def }
@@ -2328,6 +3491,23 @@ const SCREENER_COLUMNS = [
   { key: 'avgRoe5y', label: 'Average ROE 5Years', type: 'pctAbs' },
   { key: 'avgRoe3y', label: 'Average ROE 3Years', type: 'pctAbs' },
   { key: 'changePct', label: 'Change %', type: 'pct' },
+  { key: 'volume', label: 'Volume', type: 'compact' },
+  { key: 'avgVolume', label: 'Average Volume', type: 'compact' },
+  { key: 'yearHigh', label: '52 Week High', type: 'usd' },
+  { key: 'yearLow', label: '52 Week Low', type: 'usd' },
+  { key: 'beta', label: 'Beta', type: 'num' },
+  { key: 'opMargin', label: 'Operating Margin', type: 'pctAbs' },
+  { key: 'evSales', label: 'EV/Sales', type: 'num' },
+  { key: 'pFcf', label: 'P/FCF', type: 'num' },
+  { key: 'pOcf', label: 'P/OCF', type: 'num' },
+  { key: 'payoutRatio', label: 'Payout Ratio', type: 'pctAbs' },
+  { key: 'bookValuePs', label: 'Book Value / Share', type: 'usd' },
+  { key: 'ebitda', label: 'EBITDA', type: 'compact' },
+  { key: 'freeCashFlow', label: 'Free Cash Flow', type: 'compact' },
+  { key: 'operatingCashFlow', label: 'Operating Cash Flow', type: 'compact' },
+  { key: 'totalDebt', label: 'Total Debt', type: 'compact' },
+  { key: 'totalCash', label: 'Total Cash', type: 'compact' },
+  { key: 'netDebt', label: 'Net Debt', type: 'compact' },
 ]
 const DEFAULT_SCREENER_COLUMNS = ['mktCap','currentPrice','pe','pb','roe','dividendYield','changePct']
 const SERVER_SORTABLE_COLUMNS = new Set(SCREENER_COLUMNS.map(c => c.key))
@@ -2387,15 +3567,20 @@ export async function renderScreenerPage(el) {
     canonical: `${SITE_ORIGIN}/screener`,
     keywords: 'stock screener, US stocks, market cap screener, PE screener, ROE screener, debt to equity screener, DeltaScreener'
   })
-  // Read preset from URL ?preset=N — works even on full page load
-  const __presetIdx = new URLSearchParams(window.location.search).get('preset')
-  if (__presetIdx !== null) {
+  // Read query from URL ?q=... (shareable screen URLs) or ?preset=N
+  const __urlParams = new URLSearchParams(window.location.search)
+  const __urlQ = __urlParams.get('q')
+  const __presetIdx = __urlParams.get('preset')
+  if (__urlQ) {
+    sessionStorage.setItem('ds-query', __urlQ)
+  } else if (__presetIdx !== null) {
     const __pq = (window.__DS_PRESET_QUERIES__ || [])[parseInt(__presetIdx)]
     if (__pq) sessionStorage.setItem('ds-query', __pq.q)
   }
   const savedQ = window.__DS_FORCED_QUERY__ || sessionStorage.getItem('ds-query') || 'Market Cap > 10000 AND\nPrice to Earning < 30 AND\nReturn on Equity > 15'
   window.__DS_FORCED_QUERY__ = null
-  const PAGE_SIZE = 25
+  let PAGE_SIZE = Number(sessionStorage.getItem('ds-screener-pagesize') || 25)
+  if (![10, 25, 50].includes(PAGE_SIZE)) PAGE_SIZE = 25
   let currentPage = Number(sessionStorage.getItem('ds-screener-page') || 1)
   let currentConditions = []
   let selectedColumns = getScreenerColumns()
@@ -2403,49 +3588,89 @@ export async function renderScreenerPage(el) {
   
   el.innerHTML = `
     <div class="container" style="padding:24px 16px">
-      <div class="query-builder">
-        <div class="query-builder-hdr">
-          <span>Query</span>
-          <button class="btn btn-sm btn-outline" onclick="document.getElementById('query-textarea').value=''">Clear</button>
-        </div>
-        <div class="query-input-wrap">
-          <textarea id="query-textarea" placeholder="e.g.  Market Cap > 100 AND
+      <!-- ════════ BUILDER VIEW ════════ -->
+      <div id="screener-builder-view">
+        <h1 class="screener-page-h1">US Stock Screener</h1>
+        <p class="screener-page-sub">Filter 5,000+ NYSE &amp; NASDAQ stocks by P/E, ROE, market cap, margins, debt and 30+ more metrics.</p>
+
+        <div class="search-query-card">
+          <h2 class="search-query-title">Build Your Screen</h2>
+          <div class="search-query-grid">
+            <div class="search-query-left">
+              <label class="search-query-label" for="query-textarea">Your Filters</label>
+              <div class="query-input-wrap">
+                <textarea id="query-textarea" placeholder="e.g.  Market Cap > 100 AND
        Price to Earning < 30 AND
        Return on Equity > 15">${savedQ}</textarea>
-          <div id="metric-suggest" class="metric-suggest hidden"></div>
-        </div>
-        <div class="query-builder-foot">
+                <div id="metric-suggest" class="metric-suggest hidden"></div>
+              </div>
+              <div class="search-run-row">
+                <button class="btn btn-primary search-run-btn" id="run-query-btn">🔍 Run Screen</button>
+              </div>
+            </div>
+            <aside class="search-query-example">
+              <h3>Screen Examples</h3>
+              <div class="screen-example-item">
+                <span class="screen-example-tag">Quality Value</span>
+                <p>Market Cap &gt; 2000 <strong>AND</strong></p>
+                <p>Price to Earning &lt; 15 <strong>AND</strong></p>
+                <p>Return on Equity &gt; 18%</p>
+              </div>
+              <div class="screen-example-item">
+                <span class="screen-example-tag">Strong Balance Sheet</span>
+                <p>Net Profit Margin &gt; 12 <strong>AND</strong></p>
+                <p>Debt to Equity &lt; 0.5</p>
+              </div>
+              <div class="screen-example-item">
+                <span class="screen-example-tag">Growth</span>
+                <p>Revenue Growth &gt; 15 <strong>AND</strong></p>
+                <p>Return on Capital Employed &gt; 20%</p>
+              </div>
+              <button type="button" class="search-query-example-link" onclick="document.getElementById('metrics-ref').style.display='block';document.getElementById('metrics-ref').scrollIntoView({behavior:'smooth'})">Browse all available metrics →</button>
+            </aside>
+          </div>
+
           <div class="query-tip">Tip: Combine conditions with <code>AND</code>. Operators: <code>&gt;</code> <code>&lt;</code> <code>&gt;=</code> <code>&lt;=</code> <code>=</code>. Market Cap values are in <strong>USD millions</strong>, so <code>100</code> means <code>$100 million</code>.</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-outline" id="save-query-btn">Save Screen</button>
-            <button class="btn btn-outline" id="export-query-btn" disabled>Download Excel</button>
-            <button class="btn btn-outline" id="columns-btn">Edit Columns</button>
-            <button class="btn btn-primary" id="run-query-btn">🔍 Run Screen</button>
+
+          <div class="search-query-foot">
+            <button class="btn search-foot-btn" id="add-ratio-btn">＋ Add Ratio</button>
+            <button class="btn search-foot-btn" id="save-query-btn">Save Screen</button>
+            <button class="btn search-foot-btn" id="export-query-btn" disabled>Download Excel</button>
+            <button class="btn search-foot-btn" id="columns-btn">Edit Columns</button>
+            <button class="btn search-foot-btn" id="share-query-btn" title="Copy shareable link">🔗 Share</button>
+          </div>
+        </div>
+
+        <div class="metrics-list" style="display:none" id="metrics-ref">
+          <h3>Available Metrics</h3>
+          <div class="metrics-grid">
+            ${Object.entries(METRICS).filter((_, i, arr) => !arr.slice(0, i).some(([k, v]) => v.key === arr[i][1].key)).map(([name, def]) => `
+              <button class="metric-btn" onclick="insertMetric('${name}')">${name}${def.unit ? ' <span style="color:#9ca3af">(' + def.unit + ')</span>' : ''}</button>
+            `).join('')}
           </div>
         </div>
       </div>
-      
-      <div class="q-help">
-        <strong>Sample queries</strong> (click to try):
-        <div class="quick-filters" style="margin-top:8px">
-          ${SAMPLE_QUERIES.map((s, i) => `<button class="chip" onclick="setQuery(${i})">${s.name}</button>`).join('')}
+
+      <!-- ════════ RESULTS VIEW ════════ -->
+      <div id="screener-results-view" style="display:none">
+        <div class="results-topbar">
+          <button class="btn btn-outline btn-sm" id="back-to-query-btn">← Back to query</button>
+          <button class="btn btn-outline btn-sm" id="results-edit-query-btn" style="display:none"></button>
         </div>
+        <div id="column-editor-wrap"></div>
+        <div id="query-results"></div>
       </div>
-      
-      <div class="metrics-list" style="display:none" id="metrics-ref">
-        <h3>Available Metrics</h3>
-        <div class="metrics-grid">
-          ${Object.entries(METRICS).filter((_, i, arr) => !arr.slice(0, i).some(([k, v]) => v.key === arr[i][1].key)).map(([name, def]) => `
-            <button class="metric-btn" onclick="insertMetric('${name}')">${name}${def.unit ? ' <span style="color:#9ca3af">(' + def.unit + ')</span>' : ''}</button>
-          `).join('')}
+    </div>
+
+    <div class="ratio-modal-backdrop hidden" id="ratio-modal-backdrop">
+      <div class="ratio-modal" role="dialog" aria-label="Add ratio">
+        <div class="ratio-modal-hdr">
+          <strong>Add a ratio to your query</strong>
+          <button type="button" class="ratio-modal-close" id="ratio-modal-close" aria-label="Close">×</button>
         </div>
+        <input type="text" class="ratio-modal-search" id="ratio-modal-search" placeholder="Search ratios… e.g. ROE, debt, growth" autocomplete="off">
+        <div class="ratio-modal-body" id="ratio-modal-body"></div>
       </div>
-      <div style="text-align:center;margin:10px 0">
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('metrics-ref').style.display=document.getElementById('metrics-ref').style.display==='none'?'block':'none'">Show/hide available metrics</button>
-      </div>
-      <div id="column-editor-wrap"></div>
-      
-      <div id="query-results" style="margin-top:20px"></div>
     </div>
   `
 
@@ -2637,11 +3862,167 @@ export async function renderScreenerPage(el) {
   }
   
   renderColumnEditorPanel(sessionStorage.getItem('ds-screener-columns-open') === '1')
-  document.getElementById('run-query-btn').addEventListener('click', () => runQuery(1))
-  document.getElementById('save-query-btn').addEventListener('click', saveCurrentQuery)
-  document.getElementById('columns-btn').addEventListener('click', toggleColumnEditor)
-  document.getElementById('export-query-btn').addEventListener('click', exportScreenerResults)
-  runQuery(currentPage)
+
+  // ── View swap: builder <-> results (same URL) ────────────────────────────
+  function showResultsView() {
+    const b = document.getElementById('screener-builder-view')
+    const r = document.getElementById('screener-results-view')
+    if (b) b.style.display = 'none'
+    if (r) r.style.display = 'block'
+    sessionStorage.setItem('ds-screener-view', 'results')
+  }
+  function showBuilderView() {
+    const b = document.getElementById('screener-builder-view')
+    const r = document.getElementById('screener-results-view')
+    if (r) r.style.display = 'none'
+    if (b) b.style.display = 'block'
+    sessionStorage.setItem('ds-screener-view', 'builder')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  window.dsShowScreenerBuilder = showBuilderView
+  document.getElementById('back-to-query-btn')?.addEventListener('click', showBuilderView)
+
+  // Scroll results into view after a run.
+  function scrollToResults() {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+  async function runAndScroll(page = 1) {
+    showResultsView()
+    await runQuery(page)
+    scrollToResults()
+  }
+
+  document.getElementById('run-query-btn').addEventListener('click', () => {
+    trackEvent('run_screen_clicked', {
+      query: document.getElementById('query-textarea').value.substring(0, 100),
+      page: 'screener'
+    })
+    runAndScroll(1)
+  })
+
+  // ── "Add Ratio" modal: grouped, searchable ratio picker ─────────────────
+  function insertRatioIntoQuery(name, def) {
+    const ta = document.getElementById('query-textarea')
+    if (!ta) return
+    const op = def && def.string ? ' = ' : ' > '
+    const trimmed = ta.value.replace(/\s+$/, '')
+    const needsAnd = trimmed.length > 0
+    ta.value = (needsAnd ? trimmed + ' AND\n' : '') + name + op
+    ta.focus()
+    ta.setSelectionRange(ta.value.length, ta.value.length)
+  }
+  function renderRatioGroups(filter = '') {
+    const body = document.getElementById('ratio-modal-body')
+    if (!body) return
+    const q = filter.trim().toLowerCase()
+    const sections = RATIO_GROUPS.map(({ group, items }) => {
+      const matched = items.filter(name => {
+        if (!q) return true
+        const def = METRICS[name]
+        return name.toLowerCase().includes(q) || (def && def.key.toLowerCase().includes(q))
+      })
+      if (!matched.length) return ''
+      return `<div class="ratio-group">
+        <div class="ratio-group-title">${group}</div>
+        <div class="ratio-group-chips">
+          ${matched.map(name => {
+            const def = METRICS[name] || {}
+            const unit = def.unit ? `<span class="ratio-chip-unit">${def.unit}</span>` : ''
+            return `<button type="button" class="ratio-chip" data-ratio="${name.replace(/"/g, '&quot;')}">${name}${unit}</button>`
+          }).join('')}
+        </div>
+      </div>`
+    }).join('')
+    body.innerHTML = sections || `<div class="ratio-empty">No ratios match “${filter}”.</div>`
+    body.querySelectorAll('.ratio-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = btn.dataset.ratio
+        insertRatioIntoQuery(name, METRICS[name])
+        closeRatioModal()
+      })
+    })
+  }
+  function openRatioModal() {
+    const bd = document.getElementById('ratio-modal-backdrop')
+    if (!bd) return
+    renderRatioGroups('')
+    bd.classList.remove('hidden')
+    const search = document.getElementById('ratio-modal-search')
+    if (search) { search.value = ''; setTimeout(() => search.focus(), 30) }
+  }
+  function closeRatioModal() {
+    document.getElementById('ratio-modal-backdrop')?.classList.add('hidden')
+  }
+  document.getElementById('add-ratio-btn')?.addEventListener('click', () => {
+    trackEvent('add_ratio_clicked', { page: 'screener' })
+    openRatioModal()
+  })
+  document.getElementById('ratio-modal-close')?.addEventListener('click', closeRatioModal)
+  document.getElementById('ratio-modal-backdrop')?.addEventListener('click', e => {
+    if (e.target.id === 'ratio-modal-backdrop') closeRatioModal()
+  })
+  document.getElementById('ratio-modal-search')?.addEventListener('input', e => renderRatioGroups(e.target.value))
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeRatioModal()
+  })
+
+  // ── Popular screens (bottom of page) ────────────────────────────────────
+  document.querySelectorAll('.popular-screen-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.popularIdx, 10)
+      const queries = window.__DS_PRESET_QUERIES__ || SAMPLE_QUERIES
+      const preset = queries[idx]
+      if (!preset) return
+      document.getElementById('query-textarea').value = preset.q.replace(/ AND /gi, ' AND\n')
+      currentPage = 1
+      sessionStorage.setItem('ds-screener-page', '1')
+      runAndScroll(1)
+    })
+  })
+
+  document.getElementById('save-query-btn')?.addEventListener('click', () => {
+    trackEvent('save_screen_clicked', { page: 'screener' })
+    saveCurrentQuery()
+  })
+  document.getElementById('columns-btn')?.addEventListener('click', () => {
+    trackEvent('edit_columns_clicked', { page: 'screener' })
+    showResultsView()
+    toggleColumnEditor()
+    document.getElementById('column-editor')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+  document.getElementById('export-query-btn')?.addEventListener('click', () => {
+    trackEvent('download_excel_clicked', { page: 'screener' })
+    exportScreenerResults()
+  })
+  document.getElementById('share-query-btn')?.addEventListener('click', () => {
+    const q = document.getElementById('query-textarea').value.trim()
+    if (!q) return
+    trackEvent('share_screen_clicked', { page: 'screener' })
+    const url = `${SITE_ORIGIN}/screener?q=${encodeURIComponent(q)}`
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('share-query-btn')
+      const orig = btn.textContent
+      btn.textContent = '✓ Copied!'
+      btn.style.color = '#10b981'
+      setTimeout(() => { btn.textContent = orig; btn.style.color = '' }, 2000)
+    }).catch(() => {
+      // Fallback for older browsers
+      prompt('Copy this shareable link:', url)
+    })
+  })
+  // Decide which view to show on load.
+  // If user arrived via a shared ?q= / ?preset link, or returned to a prior
+  // results session, show results immediately. Otherwise show the builder.
+  const __cameFromLink = !!(__urlQ || __presetIdx !== null)
+  const __priorView = sessionStorage.getItem('ds-screener-view')
+  if (__cameFromLink || __priorView === 'results') {
+    showResultsView()
+    runQuery(currentPage)
+  } else {
+    showBuilderView()
+  }
 
   function setExportButtonState(enabled, label = 'Download Excel') {
     const btn = document.getElementById('export-query-btn')
@@ -2702,6 +4083,13 @@ export async function renderScreenerPage(el) {
 
   async function exportScreenerResults() {
     if (!currentConditions.length) return
+    // Pro gate
+    const proEmail = pro.getEmail()
+    const isPro = proEmail ? await pro.check(proEmail) : false
+    if (!isPro) {
+      await pro.showUpgradeModal()
+      return
+    }
     const activeCols = SCREENER_COLUMNS.filter(c => selectedColumns.includes(c.key))
     setExportButtonState(false, 'Preparing Excel…')
     try {
@@ -2777,6 +4165,9 @@ export async function renderScreenerPage(el) {
     try {
       await apiJson('/user/screens', { name, query: q })
       alert('Screen saved.')
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'screen_saved', { screen_name: name, query: q.slice(0, 100) })
+      }
     } catch (e) {
       if (/unauthorized|sign in/i.test(e.message || '')) {
         const refreshed = await refreshGoogleSession()
@@ -2784,6 +4175,9 @@ export async function renderScreenerPage(el) {
           try {
             await apiJson('/user/screens', { name, query: q })
             alert('Screen saved.')
+            if (typeof window.gtag === 'function') {
+              window.gtag('event', 'screen_saved', { screen_name: name, query: q.slice(0, 100) })
+            }
             return
           } catch {}
         }
@@ -2816,6 +4210,14 @@ export async function renderScreenerPage(el) {
     try {
       const res = await apiJson('/screener/custom', { conditions, page: currentPage, limit: PAGE_SIZE, sort: currentSort })
       window.lastScreenerResponse = res
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'screener_run', {
+          filter_count: conditions.length,
+          result_count: (res.results || []).length,
+          query: q.slice(0, 100),
+          signed_in: auth.signedIn()
+        })
+      }
       renderQueryResults(resultsEl, res, conditions)
     } catch (e) {
       resultsEl.innerHTML = '<div class="error">Screener error: ' + e.message + '</div>'
@@ -2859,15 +4261,27 @@ export async function renderScreenerPage(el) {
     }
     setExportButtonState(true)
     
+    const topN = Math.min(5, results.length)
     el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div><strong>${total}</strong> stocks found <span style="color:#9ca3af">(out of ${screenableUniverse.toLocaleString('en-US')} screenable, page ${page} of ${totalPages}, showing ${results.length})</span></div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="exportScreenerResults()">Download Excel</button><button class="btn btn-outline btn-sm" onclick="toggleColumnEditor()">Edit Columns</button><div>${pillsHtml}</div></div>
+      <div class="results-header">
+        <h1 class="results-title">Screen Results</h1>
+        <div class="results-header-actions">
+          <button class="btn btn-outline btn-sm" id="summary-save-btn"><span class="btn-ico">💾</span> Save Screen</button>
+        </div>
       </div>
+      <div class="results-subbar">
+        <div class="results-count">Matched <strong>${total.toLocaleString('en-US')}</strong> stocks — page ${page} of ${totalPages}</div>
+        <div class="results-toolbar">
+          <button class="btn btn-outline btn-sm" onclick="exportScreenerResults()"><span class="btn-ico">⤓</span> Export</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleColumnEditor()"><span class="btn-ico">⚙</span> Add Column</button>
+          <button class="btn btn-outline btn-sm" id="summary-watch-btn"><span class="btn-ico">★</span> Watch top ${topN}</button>
+        </div>
+      </div>
+      ${pillsHtml ? `<div class="results-pills">${pillsHtml}</div>` : ''}
       <div class="screener-sort-summary">Sorted by <strong>${sortLabel}</strong> · ${sortDirectionText}</div>
       <div class="card">
         <div class="tbl-scroll">
-          <table class="tbl">
+          <table class="tbl screener-results-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -2891,7 +4305,7 @@ export async function renderScreenerPage(el) {
               ${results.map((s, i) => `
                 <tr>
                   <td style="color:#9ca3af">${startNo + i + 1}</td>
-                  <td data-route="/stock/${s.ticker}" onclick="navigate('/stock/${s.ticker}');return false" style="cursor:pointer"><a href="${routeHref(`/stock/${s.ticker}`)}" data-route="/stock/${s.ticker}" onclick="navigate('/stock/${s.ticker}');return false" class="stock-link screener-company"><strong>${s.ticker}</strong><span>${s.name || ''}</span></a></td>
+                  <td data-route="/stock/${s.ticker}" onclick="navigate('/stock/${s.ticker}');return false" style="cursor:pointer"><a href="${routeHref(`/stock/${s.ticker}`)}" data-route="/stock/${s.ticker}" onclick="navigate('/stock/${s.ticker}');return false" class="stock-link screener-company">${renderScreenerLogo(s.ticker)}<span class="screener-company-text"><strong>${s.ticker}</strong><span>${s.name || ''}</span></span></a></td>
                   ${activeCols.map(c => `<td class="${['pct','pctAbs'].includes(c.type) ? fmt.pctClass(s[c.key]) : ''}">${renderScreenerCellStable(s[c.key], c.type)}</td>`).join('')}
                 </tr>
               `).join('')}
@@ -2899,8 +4313,23 @@ export async function renderScreenerPage(el) {
           </table>
         </div>
       </div>
-      ${pagerHtml}
+      <div class="results-pager-row">
+        ${pagerHtml}
+        <div class="results-perpage">
+          <span>Results per page</span>
+          ${[10, 25, 50].map(n => `<button type="button" class="perpage-btn ${PAGE_SIZE === n ? 'active' : ''}" data-perpage="${n}">${n}</button>`).join('')}
+        </div>
+      </div>
     `
+    el.querySelectorAll('.perpage-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const n = Number(btn.dataset.perpage)
+        if (![10, 25, 50].includes(n) || n === PAGE_SIZE) return
+        PAGE_SIZE = n
+        sessionStorage.setItem('ds-screener-pagesize', String(n))
+        runQuery(1)
+      })
+    })
     el.querySelectorAll('.sort-label-btn').forEach(btn => {
       btn.addEventListener('click', ev => {
         ev.preventDefault()
@@ -2920,6 +4349,31 @@ export async function renderScreenerPage(el) {
     })
     bindRouteElements(el)
 
+    // Sticky summary bar actions
+    const summarySaveBtn = document.getElementById('summary-save-btn')
+    if (summarySaveBtn) {
+      summarySaveBtn.addEventListener('click', () => {
+        if (!auth.signedIn()) { showSignInModal('Save this screen for later'); return }
+        saveCurrentQuery()
+      })
+    }
+    const summaryWatchBtn = document.getElementById('summary-watch-btn')
+    if (summaryWatchBtn) {
+      summaryWatchBtn.addEventListener('click', () => {
+        const top = results.slice(0, 5)
+        let added = 0
+        top.forEach(s => {
+          if (!watchlist.has(s.ticker)) {
+            watchlist.add({ ticker: s.ticker, name: s.name, price: s.currentPrice ?? s.price, changePct: s.changePct, addedAt: Date.now() })
+            added++
+          }
+        })
+        summaryWatchBtn.textContent = added > 0 ? `✓ Added ${added} — View watchlist` : '✓ Already saved'
+        summaryWatchBtn.classList.add('btn-success')
+        summaryWatchBtn.onclick = () => navigate('/watchlist')
+      })
+    }
+
     // Show save nudge for anonymous users after results load
     if (!auth.signedIn() && results.length > 0) {
       const nudgeId = 'ds-save-nudge'
@@ -2930,7 +4384,7 @@ export async function renderScreenerPage(el) {
         nudge.innerHTML = `
           <span style="font-size:14px;color:#d1faf4">💾 <strong style="color:#5eead4">Sign in free</strong> to save this screen and access it anytime.</span>
           <div style="display:flex;gap:8px;align-items:center">
-            <button id="ds-nudge-signin-btn" style="padding:8px 18px;border-radius:20px;background:#0f766e;color:#fff;border:none;font-weight:700;font-size:13px;cursor:pointer">Save Screen</button>
+            <button id="ds-nudge-signin-btn" style="padding:8px 18px;border-radius:20px;background:#2563eb;color:#fff;border:none;font-weight:700;font-size:13px;cursor:pointer">Save Screen</button>
             <button id="ds-nudge-dismiss-btn" style="background:none;border:none;color:#6b7280;font-size:18px;cursor:pointer;line-height:1;padding:0 4px">×</button>
           </div>
         `
@@ -2960,50 +4414,87 @@ export async function renderWatchlistPage(el) {
     path: '/watchlist',
     noindex: !auth.signedIn()
   })
+  // Render immediately from cached local items, then refresh + enrich in the
+  // background so the page never blocks on slow API calls.
   let items = watchlist.get()
-  if (auth.signedIn()) {
+  paintWatchlist(el, items)
+
+  // Background: pull the authoritative server list (signed-in), enrich any items
+  // missing fields, repaint, and persist — all without blocking first paint.
+  ;(async () => {
     try {
-      const data = await api('/user/watchlist')
-      if (Array.isArray(data.watchlist)) {
-        items = data.watchlist.map(x => normalizeWatchItem({ ticker: x.ticker, name: x.name, price: x.price, exchange: x.exchange, change: x.change, changePct: x.change_pct, addedAt: x.added_at })).filter(Boolean)
-      }
-    } catch {}
-  }
-  const needsEnrichment = items.some(x => !x.exchange || x.change == null || x.changePct == null || x.price == null || !x.name)
-  if (needsEnrichment) {
-    const enriched = await Promise.all(items.map(async item => {
-      if (item.exchange && item.change != null && item.changePct != null && item.price != null && item.name) return item
-      try {
-        const ov = await api(`/stock/${item.ticker}/overview`)
-        return {
-          ...item,
-          exchange: item.exchange || ov.exchange || '—',
-          change: item.change ?? ov.change ?? null,
-          changePct: item.changePct ?? ov.changePct ?? null,
-          price: item.price ?? ov.price ?? null,
-          name: item.name || ov.name || item.ticker,
+      if (auth.signedIn()) {
+        const data = await api('/user/watchlist')
+        if (Array.isArray(data.watchlist)) {
+          items = data.watchlist.map(x => normalizeWatchItem({ ticker: x.ticker, name: x.name, price: x.price, exchange: x.exchange, change: x.change, changePct: x.change_pct, addedAt: x.added_at })).filter(Boolean)
+          if (location.pathname === '/watchlist') paintWatchlist(el, items)
         }
-      } catch {
-        return item
       }
-    }))
-    items = enriched
-    if (auth.signedIn()) {
-      await Promise.all(items
-        .map(normalizeWatchItem)
-        .filter(item => item?.ticker && watchItemHasDetails(item))
-        .map(item => apiJson('/user/watchlist', item).catch(() => null)))
-    }
-  }
-  localStorage.setItem('ds-watchlist', JSON.stringify(items.map(normalizeWatchItem).filter(Boolean)))
-  
+      const needsEnrichment = items.some(x => !x.exchange || x.change == null || x.changePct == null || x.price == null || !x.name)
+      if (needsEnrichment) {
+        items = await Promise.all(items.map(async item => {
+          if (item.exchange && item.change != null && item.changePct != null && item.price != null && item.name) return item
+          try {
+            const ov = await api(`/stock/${item.ticker}/overview`)
+            return {
+              ...item,
+              exchange: item.exchange || ov.exchange || '—',
+              change: item.change ?? ov.change ?? null,
+              changePct: item.changePct ?? ov.changePct ?? null,
+              price: item.price ?? ov.price ?? null,
+              name: item.name || ov.name || item.ticker,
+            }
+          } catch {
+            return item
+          }
+        }))
+        if (location.pathname === '/watchlist') paintWatchlist(el, items)
+        // Persist enriched details back to the account (fire-and-forget).
+        if (auth.signedIn()) {
+          items
+            .map(normalizeWatchItem)
+            .filter(item => item?.ticker && watchItemHasDetails(item))
+            .forEach(item => apiJson('/user/watchlist', item).catch(() => null))
+        }
+      }
+      localStorage.setItem('ds-watchlist', JSON.stringify(items.map(normalizeWatchItem).filter(Boolean)))
+    } catch {}
+  })()
+}
+
+function paintWatchlist(el, items) {
   if (items.length === 0) {
+    const trending = [
+      { t: 'AAPL', n: 'Apple' },
+      { t: 'MSFT', n: 'Microsoft' },
+      { t: 'NVDA', n: 'NVIDIA' },
+      { t: 'AMZN', n: 'Amazon' },
+      { t: 'GOOGL', n: 'Alphabet' },
+      { t: 'TSLA', n: 'Tesla' },
+    ]
     el.innerHTML = `
-      <div class="container" style="padding:60px 16px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">⭐</div>
-        <h1 style="font-size:24px;font-weight:700;margin-bottom:8px">Your watchlist is empty</h1>
-        <p style="color:#6b7280;margin-bottom:20px">Search for stocks and click Save to add them here.</p>
-        <a href="${routeHref('/')}" class="btn btn-primary" data-route="/" onclick="navigate('/');return false">Browse Stocks</a>
+      <div class="container" style="padding:48px 16px;max-width:720px">
+        <div class="watchlist-empty">
+          <div class="watchlist-empty-icon">⭐</div>
+          <h1 class="watchlist-empty-title">Your watchlist is empty</h1>
+          <p class="watchlist-empty-sub">Save stocks to track price moves, compare ideas side by side, and pick up where you left off — no setup required.</p>
+
+          <div class="watchlist-why">
+            <div class="watchlist-why-item"><strong>Track moves</strong><span>See price and % change for everything you're watching in one view.</span></div>
+            <div class="watchlist-why-item"><strong>Stay organized</strong><span>Keep your best ideas together instead of re-searching every time.</span></div>
+            <div class="watchlist-why-item"><strong>Sync anywhere</strong><span>${auth.signedIn() ? 'Synced to your account across devices.' : 'Sign in to sync across devices.'}</span></div>
+          </div>
+
+          <div class="watchlist-trending-label">Start with a trending stock</div>
+          <div class="watchlist-trending">
+            ${trending.map(s => `<a href="${routeHref(`/stock/${s.t}`)}" class="watchlist-trending-chip" data-route="/stock/${s.t}" onclick="navigate('/stock/${s.t}');return false"><strong>${s.t}</strong><span>${s.n}</span></a>`).join('')}
+          </div>
+
+          <div class="watchlist-empty-actions">
+            <a href="${routeHref('/screener')}" class="btn btn-primary" data-route="/screener" onclick="navigate('/screener');return false">Open the screener</a>
+            <a href="${routeHref('/')}" class="btn btn-outline" data-route="/" onclick="navigate('/');return false">Browse stocks</a>
+          </div>
+        </div>
       </div>
     `
     return
@@ -3028,7 +4519,7 @@ export async function renderWatchlistPage(el) {
             <tbody>
               ${items.map(x => `
                 <tr>
-                  <td data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" style="cursor:pointer"><a href="${routeHref(`/stock/${x.ticker}`)}" data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" class="stock-link"><strong style="color:#2962ff">${x.ticker}</strong> <span style="color:#6b7280;font-size:12px">${x.name || ''}</span></a></td>
+                  <td data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" style="cursor:pointer"><a href="${routeHref(`/stock/${x.ticker}`)}" data-route="/stock/${x.ticker}" onclick="navigate('/stock/${x.ticker}');return false" class="stock-link"><strong style="color:#2563eb">${x.ticker}</strong> <span style="color:#6b7280;font-size:12px">${x.name || ''}</span></a></td>
                   <td style="font-size:12px">${x.exchange || '—'}</td>
                   <td>${fmt.usd(x.price)}</td>
                   <td class="${fmt.pctClass(x.changePct)}">${fmt.pct(x.changePct)}</td>
@@ -3049,6 +4540,182 @@ export async function renderWatchlistPage(el) {
   }
 }
 route('/watchlist', renderWatchlistPage)
+
+// ═══════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+const ALERT_FUND_METRICS = [
+  { v: 'pe', l: 'P/E Ratio' }, { v: 'pb', l: 'P/B Ratio' }, { v: 'ps', l: 'P/S Ratio' },
+  { v: 'peg', l: 'PEG Ratio' }, { v: 'roe', l: 'ROE %' }, { v: 'roce', l: 'ROCE %' },
+  { v: 'roa', l: 'ROA %' }, { v: 'netMargin', l: 'Net Margin %' }, { v: 'opm', l: 'Operating Margin %' },
+  { v: 'debtToEquity', l: 'Debt / Equity' }, { v: 'dividendYield', l: 'Dividend Yield %' },
+  { v: 'marketCap', l: 'Market Cap' }, { v: 'eps', l: 'EPS' }, { v: 'evEbitda', l: 'EV / EBITDA' },
+]
+
+const alerts = {
+  list: () => api('/user/alerts').catch(() => ({ alerts: [], events: [] })),
+  create: body => apiJson('/user/alerts', body),
+  remove: id => apiDelete('/user/alerts', { id }),
+}
+
+function alertDescribe(a) {
+  const op = a.operator === 'below' ? '<' : '>'
+  if (a.type === 'price') return `Price ${op} $${a.threshold}`
+  if (a.type === 'pct') return `Daily change ${op} ${a.threshold}%`
+  if (a.type === 'fundamental') {
+    const m = ALERT_FUND_METRICS.find(x => x.v === a.metric)
+    return `${m ? m.l : a.metric} ${op} ${a.threshold}`
+  }
+  if (a.type === 'screen') return a.label || 'Screen membership change'
+  return a.label || 'Alert'
+}
+
+function openAlertModal(stock) {
+  if (!auth.signedIn()) {
+    showActionToast('<strong>Sign in to set alerts.</strong> Alerts are free for signed-in users.', [
+      { label: 'Go to Alerts', onClick: () => navigate('/alerts') },
+    ])
+    return
+  }
+  document.getElementById('ds-alert-modal')?.remove()
+  const m = document.createElement('div')
+  m.id = 'ds-alert-modal'
+  m.className = 'ds-modal-overlay'
+  const fundOpts = ALERT_FUND_METRICS.map(x => `<option value="${x.v}">${x.l}</option>`).join('')
+  m.innerHTML = `
+    <div class="ds-modal-card">
+      <button class="ds-modal-close" id="alert-modal-close" aria-label="Close">×</button>
+      <h2 class="ds-modal-title">🔔 Alert for ${stock.ticker}</h2>
+      <p class="ds-modal-sub">Get an email when your condition is met. Current price: <strong>${fmt.usd(stock.price)}</strong></p>
+      <label class="ds-field-label">Alert type</label>
+      <select id="alert-type" class="ds-input">
+        <option value="price">Price</option>
+        <option value="pct">Daily % move</option>
+        <option value="fundamental">Fundamental metric</option>
+      </select>
+      <div id="alert-metric-wrap" style="display:none">
+        <label class="ds-field-label">Metric</label>
+        <select id="alert-metric" class="ds-input">${fundOpts}</select>
+      </div>
+      <div class="ds-field-row">
+        <div style="flex:1">
+          <label class="ds-field-label">Condition</label>
+          <select id="alert-op" class="ds-input">
+            <option value="above">Rises above</option>
+            <option value="below">Drops below</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="ds-field-label" id="alert-thresh-label">Price ($)</label>
+          <input id="alert-thresh" class="ds-input" type="number" step="any" placeholder="e.g. ${stock.price ? (stock.price * 1.1).toFixed(2) : '100'}" />
+        </div>
+      </div>
+      <div id="alert-modal-err" class="ds-modal-err"></div>
+      <button id="alert-save" class="btn btn-primary" style="width:100%;margin-top:14px">Create alert</button>
+    </div>
+  `
+  document.body.appendChild(m)
+  const typeSel = m.querySelector('#alert-type')
+  const metricWrap = m.querySelector('#alert-metric-wrap')
+  const threshLabel = m.querySelector('#alert-thresh-label')
+  const updateFields = () => {
+    const t = typeSel.value
+    metricWrap.style.display = t === 'fundamental' ? 'block' : 'none'
+    threshLabel.textContent = t === 'price' ? 'Price ($)' : t === 'pct' ? 'Change (%)' : 'Value'
+  }
+  typeSel.addEventListener('change', updateFields)
+  updateFields()
+  const close = () => m.remove()
+  m.querySelector('#alert-modal-close').addEventListener('click', close)
+  m.addEventListener('click', e => { if (e.target === m) close() })
+  m.querySelector('#alert-save').addEventListener('click', async () => {
+    const err = m.querySelector('#alert-modal-err')
+    err.textContent = ''
+    const type = typeSel.value
+    const operator = m.querySelector('#alert-op').value
+    const threshold = Number(m.querySelector('#alert-thresh').value)
+    if (!isFinite(threshold)) { err.textContent = 'Enter a valid number.'; return }
+    const body = { type, ticker: stock.ticker, operator, threshold }
+    if (type === 'fundamental') body.metric = m.querySelector('#alert-metric').value
+    const btn = m.querySelector('#alert-save')
+    btn.disabled = true; btn.textContent = 'Creating…'
+    try {
+      const res = await alerts.create(body)
+      if (res?.error) throw new Error(res.error)
+      trackEvent('alert_created', { ticker: stock.ticker, alert_type: type })
+      close()
+      showActionToast(`<strong>Alert set</strong> — ${stock.ticker} ${operator === 'below' ? 'below' : 'above'} ${threshold}. We'll email you.`, [
+        { label: 'View alerts', onClick: () => navigate('/alerts') },
+      ])
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Create alert'
+      err.textContent = e?.message || 'Could not create alert.'
+    }
+  })
+}
+window.openAlertModal = openAlertModal
+
+async function renderAlertsPage(el) {
+  setMeta({ title: 'Price & Screen Alerts — DeltaScreener', description: 'Set price, percent-move, fundamental, and screen alerts. Get emailed when conditions are met.', noindex: !auth.signedIn() })
+  if (!auth.signedIn()) {
+    el.innerHTML = `
+      <div class="container" style="padding:48px 16px;max-width:680px">
+        <div class="card" style="padding:40px;text-align:center">
+          <div style="font-size:40px;margin-bottom:12px">🔔</div>
+          <h1 style="font-size:24px;font-weight:800;margin:0 0 8px">Stock Alerts</h1>
+          <p style="color:#6b7280;margin:0 0 20px;line-height:1.6">Sign in to set price, % move, fundamental, and screen alerts. We'll email you the moment a condition is met — free for signed-in users.</p>
+          <button class="btn btn-primary" onclick="navigate('/profile')">Sign in to continue</button>
+        </div>
+      </div>`
+    return
+  }
+  el.innerHTML = `<div class="container" style="padding:32px 16px;max-width:820px"><div class="card" style="padding:32px"><div class="empty">Loading your alerts…</div></div></div>`
+  const data = await alerts.list()
+  const list = data.alerts || []
+  const events = data.events || []
+  const rowHtml = a => `
+    <div class="alert-row" data-id="${a.id}">
+      <div class="alert-row-main">
+        <span class="alert-row-ticker">${a.ticker || (a.type === 'screen' ? 'SCREEN' : '—')}</span>
+        <span class="alert-row-desc">${alertDescribe(a)}</span>
+      </div>
+      <div class="alert-row-meta">
+        ${a.last_triggered_at ? `<span class="alert-row-fired">Last fired ${fmt.date(a.last_triggered_at)}</span>` : `<span class="alert-row-active">Active</span>`}
+        <button class="alert-row-del" data-del="${a.id}" aria-label="Delete">Delete</button>
+      </div>
+    </div>`
+  const eventHtml = e => `
+    <div class="alert-event-row">
+      <span class="alert-event-tk">${e.ticker || '—'}</span>
+      <span class="alert-event-msg">${e.message || ''}</span>
+      <span class="alert-event-dt">${fmt.date(e.created_at)}</span>
+    </div>`
+  el.innerHTML = `
+    <div class="container" style="padding:32px 16px;max-width:820px">
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-hdr"><h2>Your Alerts</h2><span style="font-size:12px;color:#6b7280">${list.length} alert${list.length === 1 ? '' : 's'} · checked every 5 min · emailed when triggered</span></div>
+        <div style="padding:8px 0">
+          ${list.length ? list.map(rowHtml).join('') : '<div class="empty" style="padding:28px">No alerts yet. Open any stock and click <strong>Set Alert</strong>, or use the button below.</div>'}
+        </div>
+        <div style="padding:14px 18px;border-top:1px solid #eef0f3">
+          <button class="btn btn-outline" onclick="navigate('/screener')">Find a stock to alert on →</button>
+        </div>
+      </div>
+      ${events.length ? `<div class="card">
+        <div class="card-hdr"><h2>Recent triggers</h2><span style="font-size:12px;color:#6b7280">Last ${events.length}</span></div>
+        <div style="padding:8px 0">${events.map(eventHtml).join('')}</div>
+      </div>` : ''}
+    </div>`
+  el.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-del')
+      btn.disabled = true; btn.textContent = 'Deleting…'
+      try { await alerts.remove(Number(id)); el.querySelector(`.alert-row[data-id="${id}"]`)?.remove() }
+      catch { btn.disabled = false; btn.textContent = 'Delete' }
+    })
+  })
+}
+route('/alerts', renderAlertsPage)
 
 // ═══════════════════════════════════════════════════════════════════════
 // PROFILE PAGE
@@ -3173,6 +4840,9 @@ async function deleteSavedScreen(id) {
   if (!confirm('Delete this saved screen?')) return
   try {
     await apiDelete('/user/screens', { id })
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'screen_deleted', { screen_id: id })
+    }
     render()
   } catch (e) {
     alert('Could not delete screen: ' + e.message)
@@ -3182,12 +4852,15 @@ window.deleteSavedScreen = deleteSavedScreen
 
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
+// Take over scroll restoration so the page always opens at the top instead of
+// the browser restoring a previous mid-page scroll position.
+try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual' } catch (e) {}
 // Blog routes use light styles — don't apply dark theme on these pages
 const _initPath = location.pathname
 if (_initPath !== '/blog' && !_initPath.startsWith('/blog/')) {
   theme.apply(theme.get())
 }
-render().then(trackPageView)
+render().then(() => { window.scrollTo(0, 0); trackPageView() })
 validateSession()
   .then(ok => ok ? syncUserData() : null)
   .finally(render)

@@ -63,14 +63,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">How to Build a Stock Screen</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Strategy</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Strategy</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">How to Build a Stock Screen from Scratch: Combining ROE and Debt Filters for Better Results</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -100,13 +100,13 @@ export async function onRequestGet() {
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 24px">One practical tip: run the screen without the third filter first. Review the list. That review is itself part of the research process — you'll often notice industry clusters, outliers worth investigating, or sectors you want to exclude before applying any more filters.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(20px,3vw,28px);letter-spacing:-.03em;line-height:1.2;margin:40px 0 16px;color:#111827">How to Run This Screen on DeltaScreener</h2>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/screener" style="color:#0f766e;text-decoration:underline">build a custom screen on DeltaScreener</a> using exactly these filters. Set ROE to a minimum of 15%, debt-to-equity to a maximum of 1.0, and add a P/E or revenue growth filter if desired. No account required — results update in real time across the full US market universe.</p>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">If you want to start from a pre-built screen, the <a href="/stocks/high-roe-stocks" style="color:#0f766e;text-decoration:underline">high ROE stocks screener</a> already applies a quality filter that you can combine with additional criteria. You can also explore the <a href="/stocks/low-debt-high-roe" style="color:#0f766e;text-decoration:underline">low debt + high ROE</a> pre-set, which mirrors the two-filter strategy described above.</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/screener" style="color:#2563eb;text-decoration:underline">build a custom screen on DeltaScreener</a> using exactly these filters. Set ROE to a minimum of 15%, debt-to-equity to a maximum of 1.0, and add a P/E or revenue growth filter if desired. No account required — results update in real time across the full US market universe.</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">If you want to start from a pre-built screen, the <a href="/stocks/high-roe-stocks" style="color:#2563eb;text-decoration:underline">high ROE stocks screener</a> already applies a quality filter that you can combine with additional criteria. You can also explore the <a href="/stocks/low-debt-high-roe" style="color:#2563eb;text-decoration:underline">low debt + high ROE</a> pre-set, which mirrors the two-filter strategy described above.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for stocks using ROE, debt-to-equity, P/E, and more — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(20px,3vw,26px);letter-spacing:-.03em;line-height:1.2;margin:48px 0 20px;color:#111827">Frequently Asked Questions</h2>
@@ -124,7 +124,7 @@ export async function onRequestGet() {
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Most investors use ROE above 15% as a baseline for quality companies. Sectors like financials and utilities naturally run different ranges, so adjusting by sector context gives more accurate comparisons. For technology stocks, 20–25%+ is a reasonable bar.</p>
       </div>
 
-      <p style="font-size:15px;line-height:1.7;color:#6b7280;margin:32px 0 0">Looking for more screening strategies? Browse all guides on the <a href="/blog" style="color:#0f766e;text-decoration:underline">DeltaScreener blog</a> or jump straight to the <a href="/screener" style="color:#0f766e;text-decoration:underline">free screener</a>.</p>
+      <p style="font-size:15px;line-height:1.7;color:#6b7280;margin:32px 0 0">Looking for more screening strategies? Browse all guides on the <a href="/blog" style="color:#2563eb;text-decoration:underline">DeltaScreener blog</a> or jump straight to the <a href="/screener" style="color:#2563eb;text-decoration:underline">free screener</a>.</p>
     </main>`
 
   return new Response(renderSpaShell({

@@ -7,3 +7,6 @@ deploy_log.txt
 cloudflare-upload.zip
 SECRETS.md
 .claude/
+
+__pycache__/
+*.pyc

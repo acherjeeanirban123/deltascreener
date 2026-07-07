@@ -63,14 +63,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">Low Debt Stocks Guide</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Balance Sheet Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Balance Sheet Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">Low Debt Stocks: How a Strong Balance Sheet Protects Investors</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -95,30 +95,30 @@ export async function onRequestGet() {
         <li style="margin-bottom:10px"><strong>Positive free cash flow</strong> — a company generating consistent free cash flow is organically deleveraging over time, even if the debt balance has not changed yet.</li>
       </ul>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">Pairing these balance sheet filters with a profitability metric — return on equity above 15%, for instance — tends to surface companies that are not just debt-free but are actually efficient with the capital they do employ. That combination narrows a universe of thousands of stocks to a more manageable, higher-quality shortlist.</p>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/stocks/low-debt-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">screen for low debt stocks on DeltaScreener</a> — the page is pre-filtered by debt-to-equity ratio across the full US market, no sign-up required. From there you can layer in additional criteria like dividend yield or sector.</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/stocks/low-debt-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">screen for low debt stocks on DeltaScreener</a> — the page is pre-filtered by debt-to-equity ratio across the full US market, no sign-up required. From there you can layer in additional criteria like dividend yield or sector.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:40px 0 14px;color:#111827">Frequently Asked Questions</h2>
 
-      <div style="border-left:3px solid #0f766e;padding-left:20px;margin-bottom:28px">
+      <div style="border-left:3px solid #2563eb;padding-left:20px;margin-bottom:28px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">What debt-to-equity ratio counts as "low debt"?</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">A D/E ratio below 0.5 is generally considered low for most non-financial sectors. Technology companies often sit between 0.1 and 0.3. Context matters: utilities and REITs routinely exceed 1.0 because their cash flows are stable and predictable — that is not necessarily a red flag in those industries.</p>
       </div>
 
-      <div style="border-left:3px solid #0f766e;padding-left:20px;margin-bottom:28px">
+      <div style="border-left:3px solid #2563eb;padding-left:20px;margin-bottom:28px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">Why do low-debt companies tend to outperform during downturns?</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Lower fixed interest obligations mean a revenue drop is less likely to threaten solvency. These companies also retain flexibility to invest or acquire competitors when credit markets tighten and weaker peers are forced to sell assets at steep discounts.</p>
       </div>
 
-      <div style="border-left:3px solid #0f766e;padding-left:20px;margin-bottom:40px">
+      <div style="border-left:3px solid #2563eb;padding-left:20px;margin-bottom:40px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">Can I screen for low-debt stocks for free?</p>
-        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Yes. DeltaScreener's <a href="/stocks/low-debt-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">low debt stocks screener</a> is free with no account required. You can also combine debt filters with other criteria on the <a href="/screener" style="color:#0f766e;font-weight:600;text-decoration:none">full screener</a>.</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Yes. DeltaScreener's <a href="/stocks/low-debt-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">low debt stocks screener</a> is free with no account required. You can also combine debt filters with other criteria on the <a href="/screener" style="color:#2563eb;font-weight:600;text-decoration:none">full screener</a>.</p>
       </div>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for low-debt US stocks using real balance sheet data — free, no sign-up required.</p>
-        <a href="/stocks/low-debt-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View Low Debt Stocks →</a>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:transparent;color:#0f766e;text-decoration:none;font-weight:800;font-size:14px;border:2px solid #0f766e">Open Full Screener →</a>
+        <a href="/stocks/low-debt-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View Low Debt Stocks →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:transparent;color:#2563eb;text-decoration:none;font-weight:800;font-size:14px;border:2px solid #2563eb">Open Full Screener →</a>
       </div>
     </main>`
 

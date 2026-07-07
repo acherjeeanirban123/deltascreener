@@ -10,8 +10,8 @@ export async function onRequestGet() {
   ]
   const bodyHtml = `
   <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
-    <nav aria-label="Breadcrumb" style="margin-bottom:20px"><ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774"><li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li><li style="color:#9ca3af">/</li><li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li><li style="color:#9ca3af">/</li><li style="color:#374151">NASDAQ Screener</li></ol></nav>
-    <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Exchange Screening</div>
+    <nav aria-label="Breadcrumb" style="margin-bottom:20px"><ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774"><li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li><li style="color:#9ca3af">/</li><li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li><li style="color:#9ca3af">/</li><li style="color:#374151">NASDAQ Screener</li></ol></nav>
+    <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Exchange Screening</div>
     <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,44px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">NASDAQ Stock Screener: How to Filter NASDAQ Stocks Free</h1>
     <p style="color:#6b7280;font-size:15px;margin:0 0 32px">Updated June 2026 · 5 min read</p>
     <p style="line-height:1.8;color:#374151;font-size:16px;margin:0 0 20px">The NASDAQ is home to over 3,000 stocks — dominated by technology, biotech, and high-growth companies. Screening NASDAQ stocks requires filters tuned for higher-growth, higher-valuation businesses compared to NYSE-listed companies.</p>
@@ -27,14 +27,14 @@ export async function onRequestGet() {
     </ul>
     <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">Ready-Made NASDAQ Screens</h2>
     <div style="display:grid;gap:12px;margin:0 0 32px">
-      <a href="/screens/nasdaq-high-roe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">NASDAQ High ROE Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Quality NASDAQ companies by return on equity</span></a>
-      <a href="/screens/high-roe-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">High ROE Tech Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Technology sector quality screen</span></a>
-      <a href="/screens/undervalued-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">Undervalued Tech Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Tech stocks at reasonable valuations</span></a>
+      <a href="/screens/nasdaq-high-roe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">NASDAQ High ROE Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Quality NASDAQ companies by return on equity</span></a>
+      <a href="/screens/high-roe-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">High ROE Tech Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Technology sector quality screen</span></a>
+      <a href="/screens/undervalued-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">Undervalued Tech Stocks</strong><span style="color:#6b7280;font-size:14px;display:block;margin-top:4px">Tech stocks at reasonable valuations</span></a>
     </div>
     <div style="margin-top:40px;padding:24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-      <strong style="display:block;font-size:16px;color:#0f766e;margin-bottom:8px">Screen NASDAQ Stocks Free →</strong>
+      <strong style="display:block;font-size:16px;color:#2563eb;margin-bottom:8px">Screen NASDAQ Stocks Free →</strong>
       <p style="margin:0 0 14px;color:#374151;line-height:1.7;font-size:14px">DeltaScreener covers all NASDAQ-listed stocks with 30+ filters. No account required.</p>
-      <a href="/screener" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+      <a href="/screener" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
     </div>
   </main>`
   return new Response(renderSpaShell({ title, description, canonicalUrl, keywords: 'NASDAQ stock screener, NASDAQ stocks filter, free NASDAQ screener, screen NASDAQ stocks, NASDAQ high ROE', jsonLd, bodyHtml }), {

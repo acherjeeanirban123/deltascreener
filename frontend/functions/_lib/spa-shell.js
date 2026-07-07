@@ -1,6 +1,6 @@
 export const SITE_ORIGIN = 'https://deltascreener.com'
 
-export function renderSpaShell({ title, description, canonicalUrl, keywords = '', jsonLd = [], bodyHtml = '', robots = 'index,follow' }) {
+export function renderSpaShell({ title, description, canonicalUrl, keywords = '', jsonLd = [], bodyHtml = '', robots = 'index,follow', ogImage = 'https://deltascreener.com/og-image.png' }) {
   const jsonLdStr = JSON.stringify(Array.isArray(jsonLd) ? jsonLd : [jsonLd])
   // Wrap bodyHtml in a prerender-shell marker so the SPA knows SSR content exists
   // and doesn't trigger a full-page reload on blog/stock pages
@@ -21,18 +21,18 @@ export function renderSpaShell({ title, description, canonicalUrl, keywords = ''
   <meta property="og:description" content="${description}" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${canonicalUrl}" />
-  <meta property="og:image" content="https://deltascreener.com/og-image.png" />
+  <meta property="og:image" content="${ogImage}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="https://deltascreener.com/og-image.png" />
+  <meta name="twitter:image" content="${ogImage}" />
   <meta name="twitter:site" content="@deltascreener" />
   <script type="application/ld+json">${jsonLdStr}</script>
   <link rel="icon" type="image/svg+xml" href="/favicon2.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/src/styles.css?v=20260607-fixes" />
+  <link rel="stylesheet" href="/src/styles.css?v=20260704-dataquality" />
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-40Y2P275ZZ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -43,8 +43,9 @@ export function renderSpaShell({ title, description, canonicalUrl, keywords = ''
   </script>
 </head>
 <body>
+  <script>try{document.body.setAttribute('data-theme',localStorage.getItem('theme')||'light')}catch(e){}</script>
   <div id="app">${shellContent}</div>
-  <script type="module" src="/src/main2.js?v=20260607-fixes"></script>
+  <script type="module" src="/src/main2.js?v=20260704-dataquality"></script>
 </body>
 </html>`
 }

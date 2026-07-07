@@ -42,14 +42,14 @@ export async function onRequestGet() {
   <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
     <nav aria-label="Breadcrumb" style="margin-bottom:20px">
       <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-        <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+        <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
         <li style="color:#9ca3af">/</li>
-        <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+        <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
         <li style="color:#9ca3af">/</li>
         <li style="color:#374151">Best Free Stock Screener</li>
       </ol>
     </nav>
-    <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Screener Guide</div>
+    <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Screener Guide</div>
     <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,44px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">Best Free Stock Screener for US Stocks in 2026</h1>
     <p style="color:#6b7280;font-size:15px;margin:0 0 32px">Updated June 2026 · 6 min read</p>
 
@@ -67,7 +67,7 @@ export async function onRequestGet() {
     <p style="line-height:1.8;color:#374151;font-size:16px;margin:0 0 20px">Beyond filters, a good screener gives you historical data — not just trailing twelve months. Seeing 5–10 years of financials tells you whether quality is consistent or just a one-year anomaly.</p>
 
     <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">DeltaScreener: 30+ Filters, No Account Required</h2>
-    <p style="line-height:1.8;color:#374151;font-size:16px;margin:0 0 16px"><a href="/screener" style="color:#0f766e;font-weight:700">DeltaScreener</a> covers over 5,000 NYSE and NASDAQ stocks with 30+ fundamental filters and 10 years of annual financial data. Key features:</p>
+    <p style="line-height:1.8;color:#374151;font-size:16px;margin:0 0 16px"><a href="/screener" style="color:#2563eb;font-weight:700">DeltaScreener</a> covers over 5,000 NYSE and NASDAQ stocks with 30+ fundamental filters and 10 years of annual financial data. Key features:</p>
     <ul style="line-height:2;color:#374151;font-size:16px;padding-left:24px;margin:0 0 20px">
       <li>Filter by P/E, P/B, ROE, ROA, Net Margin, Debt/Equity, Dividend Yield, EPS Growth, Revenue Growth, Market Cap, and more</li>
       <li>Custom query language — combine any number of filters with AND logic</li>
@@ -79,10 +79,10 @@ export async function onRequestGet() {
     <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">Popular Stock Screens to Try</h2>
     <p style="line-height:1.8;color:#374151;font-size:16px;margin:0 0 16px">Here are some ready-made screens on DeltaScreener:</p>
     <div style="display:grid;gap:12px;margin:0 0 28px">
-      <a href="/screens/high-roe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">High ROE Stocks</strong> <span style="color:#6b7280;font-size:14px">— Quality companies with strong return on equity</span></a>
-      <a href="/screens/low-pe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">Low P/E Stocks</strong> <span style="color:#6b7280;font-size:14px">— Value stocks trading below market average</span></a>
-      <a href="/screens/dividend-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">Dividend Stocks</strong> <span style="color:#6b7280;font-size:14px">— Stocks with consistent dividend yield</span></a>
-      <a href="/screens/undervalued-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#0f766e">Undervalued Tech Stocks</strong> <span style="color:#6b7280;font-size:14px">— Tech stocks at reasonable valuations</span></a>
+      <a href="/screens/high-roe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">High ROE Stocks</strong> <span style="color:#6b7280;font-size:14px">— Quality companies with strong return on equity</span></a>
+      <a href="/screens/low-pe-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">Low P/E Stocks</strong> <span style="color:#6b7280;font-size:14px">— Value stocks trading below market average</span></a>
+      <a href="/screens/dividend-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">Dividend Stocks</strong> <span style="color:#6b7280;font-size:14px">— Stocks with consistent dividend yield</span></a>
+      <a href="/screens/undervalued-tech-stocks" style="padding:16px 20px;border-radius:12px;border:1px solid #e5e7eb;background:#f9fafb;text-decoration:none;display:block"><strong style="color:#2563eb">Undervalued Tech Stocks</strong> <span style="color:#6b7280;font-size:14px">— Tech stocks at reasonable valuations</span></a>
     </div>
 
     <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">Frequently Asked Questions</h2>
@@ -102,9 +102,9 @@ export async function onRequestGet() {
     </div>
 
     <div style="margin-top:40px;padding:24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-      <strong style="display:block;font-size:16px;color:#0f766e;margin-bottom:8px">Try DeltaScreener Free →</strong>
+      <strong style="display:block;font-size:16px;color:#2563eb;margin-bottom:8px">Try DeltaScreener Free →</strong>
       <p style="margin:0 0 14px;color:#374151;line-height:1.7;font-size:14px">Screen 5,000+ US stocks with 30+ filters. No account needed.</p>
-      <a href="/screener" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+      <a href="/screener" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
     </div>
   </main>`
 

@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">High ROE, Low Debt Stocks</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Investing · Quality</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Investing · Quality</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">High ROE, Low Debt Stocks: The Quality Combination That Matters</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -97,7 +97,7 @@ export async function onRequestGet() {
       <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">It also helps to layer in a minimum profitability filter — net margin above 10%, for instance — to ensure the ROE is driven by real earnings rather than by equity shrinkage from buybacks (another mechanism that can mechanically lift ROE without improving underlying returns).</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.02em;margin:40px 0 16px;color:#111827">How to Screen for These Stocks on DeltaScreener</h2>
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">You can <a href="/stocks/high-roe-stocks" style="color:#0f766e;font-weight:600;text-decoration:underline">screen for high ROE stocks on DeltaScreener</a> using the free, no-signup screener. Set the ROE filter to 20% or higher, then add a debt-to-equity filter at 0.5 or below. This combination will typically surface a focused list of 30–80 US stocks depending on market conditions — far more actionable than the thousands of names that pass a single-metric filter.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">You can <a href="/stocks/high-roe-stocks" style="color:#2563eb;font-weight:600;text-decoration:underline">screen for high ROE stocks on DeltaScreener</a> using the free, no-signup screener. Set the ROE filter to 20% or higher, then add a debt-to-equity filter at 0.5 or below. This combination will typically surface a focused list of 30–80 US stocks depending on market conditions — far more actionable than the thousands of names that pass a single-metric filter.</p>
       <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">From there, consider adding a market cap minimum (to filter out micro-caps with potentially volatile metrics) and sorting by ROE descending to see the strongest performers at the top. The results give you a starting universe for deeper research — not a buy list, but a curated shortlist of businesses that have demonstrated genuine capital efficiency without financial leverage distortion.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.02em;margin:40px 0 16px;color:#111827">FAQ</h2>
@@ -117,12 +117,12 @@ export async function onRequestGet() {
         <p style="font-size:15px;line-height:1.75;color:#374151;margin:0">A debt-to-equity ratio below 0.5 is a common conservative threshold. For capital-light businesses like software or consumer brands, even below 0.3 is reasonable. Avoid applying a single threshold to capital-intensive sectors like utilities or real estate, where moderate debt is structural.</p>
       </div>
 
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 40px">The high-ROE, low-debt filter is one of the most durable quality screens in fundamental investing. It doesn't guarantee outperformance, and it works best as the start of a research process rather than the end of one. But as a first-pass filter for identifying businesses worth studying, it's hard to beat. Explore it further with the <a href="/screener" style="color:#0f766e;font-weight:600;text-decoration:underline">DeltaScreener free screener</a>.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 40px">The high-ROE, low-debt filter is one of the most durable quality screens in fundamental investing. It doesn't guarantee outperformance, and it works best as the start of a research process rather than the end of one. But as a first-pass filter for identifying businesses worth studying, it's hard to beat. Explore it further with the <a href="/screener" style="color:#2563eb;font-weight:600;text-decoration:underline">DeltaScreener free screener</a>.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for high-ROE, low-debt stocks free — no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

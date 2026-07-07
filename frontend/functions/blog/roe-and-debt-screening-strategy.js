@@ -1,4 +1,4 @@
-// v20260607-1
+// v20260623-minimal4
 import { renderSpaShell, SITE_ORIGIN } from '../_lib/spa-shell.js'
 
 export async function onRequestGet() {
@@ -63,14 +63,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">ROE &amp; Debt Screening Strategy</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Screening Strategy</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Screening Strategy</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">Combining ROE and Debt Filters: A Smarter Stock Screening Strategy</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -104,7 +104,7 @@ export async function onRequestGet() {
         <li style="margin-bottom:8px"><strong>Net margin ≥ 10%</strong></li>
       </ul>
       <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 18px">…produces a list where profitability is confirmed at multiple levels: at the equity level (ROE), at the balance sheet level (D/E), and at the revenue level (net margin). Companies passing all three tend to be durable businesses with real competitive advantages — not one-time earners or firms temporarily inflated by financial engineering.</p>
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 18px">This is exactly the type of multi-factor screen you can run on DeltaScreener. You can <a href="/screener" style="color:#0f766e;text-decoration:none;font-weight:600">screen for high ROE, low debt stocks on DeltaScreener</a> with all three filters in seconds — free, no sign-up required.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 18px">This is exactly the type of multi-factor screen you can run on DeltaScreener. You can <a href="/screener" style="color:#2563eb;text-decoration:none;font-weight:600">screen for high ROE, low debt stocks on DeltaScreener</a> with all three filters in seconds — free, no sign-up required.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-.03em;margin:40px 0 14px;color:#111827">FAQ</h2>
 
@@ -123,12 +123,12 @@ export async function onRequestGet() {
         <p style="font-size:15px;line-height:1.8;color:#374151;margin:0">Yes. DeltaScreener lets you filter US stocks by ROE, debt-to-equity, net margin, and dozens of other criteria for free with no sign-up required.</p>
       </div>
 
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 32px">Screening is not a replacement for analysis — it's the front door to it. A well-constructed multi-factor screen cuts the universe down to a set of candidates worth spending time on. Start with ROE and debt, refine with margin, and you'll have a process that surfaces quality businesses consistently. <a href="/screener" style="color:#0f766e;text-decoration:none;font-weight:600">Open the free DeltaScreener screener</a> to apply these filters yourself.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 32px">Screening is not a replacement for analysis — it's the front door to it. A well-constructed multi-factor screen cuts the universe down to a set of candidates worth spending time on. Start with ROE and debt, refine with margin, and you'll have a process that surfaces quality businesses consistently. <a href="/screener" style="color:#2563eb;text-decoration:none;font-weight:600">Open the free DeltaScreener screener</a> to apply these filters yourself.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for high ROE, low debt US stocks — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

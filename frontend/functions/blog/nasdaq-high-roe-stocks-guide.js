@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">NASDAQ High ROE Stocks</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">NASDAQ High ROE Stocks: A Practical Screening Guide</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -100,7 +100,7 @@ export async function onRequestGet() {
       <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 24px">One caution: very high ROE (above 50%) deserves scrutiny. It could reflect genuine competitive advantage, but it can also indicate negative equity from large buybacks or leveraged capital structures. Always pair ROE with a debt check before drawing conclusions.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:24px;letter-spacing:-.02em;color:#111827;margin:40px 0 12px">How to Use DeltaScreener for This</h2>
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">You can <a href="/stocks/high-roe-stocks" style="color:#0f766e;text-decoration:underline">screen for high ROE stocks on DeltaScreener</a> and add an exchange filter to narrow to NASDAQ listings specifically. The screener lets you combine ROE, debt-to-equity, market cap, and sector filters in one view — no sign-up required.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 16px">You can <a href="/stocks/high-roe-stocks" style="color:#2563eb;text-decoration:underline">screen for high ROE stocks on DeltaScreener</a> and add an exchange filter to narrow to NASDAQ listings specifically. The screener lets you combine ROE, debt-to-equity, market cap, and sector filters in one view — no sign-up required.</p>
       <p style="font-size:16px;line-height:1.8;color:#374151;margin:0 0 24px">The results update with current fundamental data, so you're working with the latest reported figures rather than stale snapshots.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:24px;letter-spacing:-.02em;color:#111827;margin:40px 0 12px">FAQ</h2>
@@ -116,12 +116,12 @@ export async function onRequestGet() {
         <p style="font-size:15px;line-height:1.75;color:#374151;margin:0 0 8px">The NYSE lists around 2,000 companies with a combined domestic market cap of roughly $38 trillion, skewing toward industrials, financials, and blue chips. NASDAQ lists over 3,000 companies and is dominated by technology and growth names. Filtering by exchange lets you target different sectors and business models in your screen.</p>
       </div>
 
-      <p style="font-size:16px;line-height:1.8;color:#374151;margin:32px 0 24px">The NASDAQ + high ROE combination is one of the more practical entry points for investors looking for quality businesses without having to manually comb through thousands of names. With the right filters in place, you can surface a shortlist of capital-efficient compounders — and then do the deeper fundamental work from there. <a href="/screener" style="color:#0f766e;text-decoration:underline">Start building your screen on DeltaScreener</a> today.</p>
+      <p style="font-size:16px;line-height:1.8;color:#374151;margin:32px 0 24px">The NASDAQ + high ROE combination is one of the more practical entry points for investors looking for quality businesses without having to manually comb through thousands of names. With the right filters in place, you can surface a shortlist of capital-efficient compounders — and then do the deeper fundamental work from there. <a href="/screener" style="color:#2563eb;text-decoration:underline">Start building your screen on DeltaScreener</a> today.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for NASDAQ high ROE stocks using these exact criteria — free, no sign-up required.</p>
-        <a href="/stocks/high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Screen High ROE Stocks →</a>
+        <a href="/stocks/high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Screen High ROE Stocks →</a>
       </div>
     </main>`
 

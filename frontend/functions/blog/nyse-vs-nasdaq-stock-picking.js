@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">NYSE vs NASDAQ</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Exchange Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Exchange Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">NYSE vs NASDAQ: Key Differences Every Stock Picker Should Know</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -95,8 +95,8 @@ export async function onRequestGet() {
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">How to Use Exchange Filters in Your Stock Screen</h2>
       <p style="line-height:1.75;color:#374151;margin:0 0 16px">Exchange filters work best as a secondary constraint alongside primary fundamental filters, not as a standalone screen. Here are a few practical combinations worth trying:</p>
       <ul style="line-height:1.9;color:#374151;margin:0 0 20px;padding-left:22px">
-        <li style="margin-bottom:10px"><strong>NASDAQ + High ROE:</strong> Narrows the Nasdaq universe to capital-efficient businesses, which tends to surface technology and software companies with strong underlying economics. You can <a href="/stocks/nasdaq-high-roe-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">screen for NASDAQ high ROE stocks on DeltaScreener</a> directly.</li>
-        <li style="margin-bottom:10px"><strong>NYSE + Low Debt:</strong> Targets established companies with conservative balance sheets — a common starting point for dividend-focused or defensive investors. DeltaScreener's <a href="/stocks/nyse-low-debt-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">NYSE low debt stocks page</a> runs this filter automatically.</li>
+        <li style="margin-bottom:10px"><strong>NASDAQ + High ROE:</strong> Narrows the Nasdaq universe to capital-efficient businesses, which tends to surface technology and software companies with strong underlying economics. You can <a href="/stocks/nasdaq-high-roe-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">screen for NASDAQ high ROE stocks on DeltaScreener</a> directly.</li>
+        <li style="margin-bottom:10px"><strong>NYSE + Low Debt:</strong> Targets established companies with conservative balance sheets — a common starting point for dividend-focused or defensive investors. DeltaScreener's <a href="/stocks/nyse-low-debt-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">NYSE low debt stocks page</a> runs this filter automatically.</li>
         <li style="margin-bottom:10px"><strong>Exchange + Sector:</strong> Layering an exchange filter on top of a sector filter (e.g., Nasdaq + Technology + ROE ≥ 20%) can reduce the universe to a manageable size without losing too much breadth.</li>
       </ul>
       <p style="line-height:1.75;color:#374151;margin:0 0 16px">The goal is not to pick stocks based on which exchange they trade on. The goal is to use exchange membership as one lens among many — a proxy for listing history, size, and sector — that makes your fundamental screens more coherent.</p>
@@ -120,10 +120,10 @@ export async function onRequestGet() {
       <p style="line-height:1.75;color:#374151;margin:32px 0 24px">NYSE and NASDAQ are not interchangeable labels — they represent meaningfully different listing universes with different sector tilts, size distributions, and historical profiles. Understanding the difference helps you build tighter, more intentional stock screens rather than running filters against a mixed pool where the results are harder to interpret. Start with the fundamentals, then use exchange as a secondary lens to sharpen the universe you are working within.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for NYSE or NASDAQ stocks using ROE, debt, valuation, and sector filters — free, no sign-up required.</p>
-        <a href="/stocks/nasdaq-high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">NASDAQ High ROE Stocks →</a>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#0f766e;text-decoration:none;font-weight:800;font-size:14px;border:1px solid #0f766e">Open Custom Screener →</a>
+        <a href="/stocks/nasdaq-high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">NASDAQ High ROE Stocks →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#2563eb;text-decoration:none;font-weight:800;font-size:14px;border:1px solid #2563eb">Open Custom Screener →</a>
       </div>
     </main>`
 

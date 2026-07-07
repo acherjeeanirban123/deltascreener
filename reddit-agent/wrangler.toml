@@ -1,0 +1,6 @@
+name = "deltascreener-reddit-agent"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 4 * * *"]  # Every day at 4:00 AM UTC (9:30 AM IST)

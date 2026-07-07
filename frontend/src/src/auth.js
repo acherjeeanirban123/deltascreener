@@ -4,4 +4,4 @@ export {
   refreshGoogleSession,
   signOut,
   validateSession,
-} from './app5.js?v=20260607-blog-dark2'
+} from './app5.js?v=20260622-favicon'

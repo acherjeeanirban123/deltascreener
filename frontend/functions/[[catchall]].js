@@ -4,7 +4,7 @@
 import { renderSpaShell, SITE_ORIGIN } from './_lib/spa-shell.js'
 
 // Known valid SPA routes — each with proper canonical/meta for SEO
-const VALID_EXACT = new Set(['/', '/screener', '/watchlist', '/portfolio'])
+const VALID_EXACT = new Set(['/', '/screener', '/watchlist', '/portfolio', '/alerts', '/news'])
 const VALID_PREFIXES = ['/stock/', '/stocks/', '/screens/']
 // Note: /blog and /blog/* are NOT in VALID_EXACT or VALID_PREFIXES —
 // they are handled by frontend/functions/blog/index.js and blog/[slug].js
@@ -23,6 +23,18 @@ const SPA_SHELL_META = {
     description: 'Track your stock portfolio performance on DeltaScreener.',
     canonical: '/portfolio',
     robots: 'noindex,follow',
+  },
+  '/alerts': {
+    title: 'Stock Alerts | DeltaScreener',
+    description: 'Set price, percent-move, fundamental, and screen alerts and get emailed when conditions are met.',
+    canonical: '/alerts',
+    robots: 'noindex,follow',
+  },
+  '/news': {
+    title: 'Stock Market News | DeltaScreener',
+    description: 'Latest US stock market and company news headlines, updated throughout the day.',
+    canonical: '/news',
+    robots: 'index,follow',
   },
 }
 
@@ -88,7 +100,7 @@ export async function onRequestGet(context) {
         This page doesn't exist. It may have been moved, deleted, or the URL may be wrong.
       </p>
       <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-        <a href="/" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700;font-size:14px">Go Home</a>
+        <a href="/" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px">Go Home</a>
         <a href="/screener" style="display:inline-flex;padding:11px 18px;border-radius:12px;background:#f1f5f9;color:#374151;text-decoration:none;font-weight:700;font-size:14px">Stock Screener</a>
       </div>
     </main>`

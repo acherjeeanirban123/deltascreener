@@ -9,7 +9,7 @@
 ## Deploy Command
 ```bash
 cd "/Users/anirbanacherjee/Desktop/delta screener 1/Delta Screener/frontend"
-CLOUDFLARE_API_TOKEN="<see SECRETS.md>" /usr/bin/npx wrangler pages deploy . --project-name=deltascreener --no-bundle --commit-dirty=true
+CLOUDFLARE_API_TOKEN="<see SECRETS.md>" npx wrangler pages deploy . --project-name=deltascreener --commit-dirty=true
 ```
 
 ## Credentials

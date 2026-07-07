@@ -234,7 +234,7 @@ function renderBrandMark({ className = 'logo-icon', ariaLabel = 'DeltaScreener',
     ? 'alt="" aria-hidden="true"'
     : `alt="${escapeHtml(ariaLabel)}"`
   return `
-    <img class="${className}" src="/logo-mark.png?v=20260528-logo-1" width="832" height="830" decoding="async" ${labelAttrs} />
+    <img class="${className}" src="/logo-mark.png?v=20260622-favicon-1" width="832" height="830" decoding="async" ${labelAttrs} />
   `
 }
 

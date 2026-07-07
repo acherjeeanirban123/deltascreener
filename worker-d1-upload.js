@@ -10,40 +10,51 @@ const SECU = 'DeltaScreener contact@deltascreener.com'
 const DEFAULT_GOOGLE_CLIENT_ID = '1062200569141-0vik7idoi4skecsh8dii6nksmg80afrv.apps.googleusercontent.com'
 const DATA_VERSION = '20.96-subrequest-budget'
 const STOCK_STALE_DAYS = 30
-const FUNDAMENTAL_STALE_DAYS = 21
+const FUNDAMENTAL_STALE_DAYS = 2
 const QUOTE_STALE_DAYS = 1
-const TOP_FINANCIAL_STALE_DAYS = FUNDAMENTAL_STALE_DAYS
+const QUOTE_STALE_HOURS = 1
+const QUOTE_STALE_REST_MINUTES = 30
+const QUOTE_TOP_STALE_MINUTES = 10
+const TOP_FINANCIAL_STALE_DAYS = 1
 const INCOMPLETE_FUNDAMENTAL_RETRY_DAYS = 1
 const TOP_PRIORITY_COUNT = 500
-const SYMBOL_REFRESH_DAYS = 30
-const MAX_QUOTE_REFRESH_LIMIT = 120
+const SYMBOL_REFRESH_DAYS = 1
+const MAX_QUOTE_REFRESH_LIMIT = 210
 const MAX_DEEP_REFRESH_LIMIT = 1000
-const SCHEDULED_QUOTE_LIMIT = 12
-const SCHEDULED_TOP_LIMIT = 5
-const SCHEDULED_REST_LIMIT = 5
-const SCHEDULED_CORE_RATIO_LIMIT = 2
-const SCHEDULED_RICH_CORE_RATIO_LIMIT = 1
+// Tuned for Cloudflare Workers Paid plan + FMP Starter (300 calls/min, no daily cap).
+// Target ceiling = 75% of limit = 225 calls/min, leaving headroom for future features.
+// Each quote = 1 FMP call; each fundamental refresh = ~6 calls. Per-minute peak budget:
+//   190 quotes + 2 top-fund (~12) + 3 rest-fund (~18) ~= 220 calls/min (< 225 = 75%).
+// Quote demand: top-500 every 10min (3,000/hr) + ~4,400 rest every 30min (8,800/hr)
+//   = ~11,800/hr ~= 197/min avg-at-boundary; spread out it's lower, 190/min clears it.
+// Fund throughput: top 2/min = 2,880/day (>= 500 daily), rest 3/min = 4,320/day
+//   (>= ~2,200/day needed for ~4,400 on a 2-day window).
+const SCHEDULED_QUOTE_LIMIT = 190
+const SCHEDULED_TOP_LIMIT = 2
+const SCHEDULED_REST_LIMIT = 3
+const SCHEDULED_CORE_RATIO_LIMIT = 8
+const SCHEDULED_RICH_CORE_RATIO_LIMIT = 4
 const SCHEDULED_QUOTE_MAX_BATCHES = 1
 const SCHEDULED_TOP_MAX_BATCHES = 1
 const SCHEDULED_REST_MAX_BATCHES = 1
 const FREE_TIER_BULK_SAFE_MODE = false
 const MIN_ACTIVE_UNIVERSE_SIZE = 3000
-const QUOTE_REFRESH_SAFE_INVOCATION_LIMIT = 40
-const SCHEDULED_LOCK_MINUTES = 9
-const SCHEDULED_MAX_RUNTIME_MS = (8 * 60 * 1000) + (30 * 1000)
-const SCHEDULED_FINALIZE_BUFFER_MS = 20_000
-const SCHEDULED_QUOTE_STAGE_MAX_MS = 75_000
-const SCHEDULED_TOP_STAGE_MAX_MS = 120_000
-const SCHEDULED_REST_STAGE_MAX_MS = 120_000
+const QUOTE_REFRESH_SAFE_INVOCATION_LIMIT = 210
+const SCHEDULED_LOCK_MINUTES = 2
+const SCHEDULED_MAX_RUNTIME_MS = (55 * 1000)
+const SCHEDULED_FINALIZE_BUFFER_MS = 6_000
+const SCHEDULED_QUOTE_STAGE_MAX_MS = 35_000
+const SCHEDULED_TOP_STAGE_MAX_MS = 12_000
+const SCHEDULED_REST_STAGE_MAX_MS = 10_000
 const SCHEDULED_MANUAL_CLEAR_MIN_MS = 2 * 60 * 1000
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000
 const FMP_RETRY_BASE_MS = 350
 const FMP_QUOTE_BATCH_PAUSE_MS = 75
 const GET_OR_BUILD_TIMEOUT_MS = 20_000
 const SEC_FETCH_TIMEOUT_MS = 12_000
-const QUOTE_REFRESH_CONCURRENCY = 1
-const TOP_REFRESH_CONCURRENCY = 1
-const DEEP_REFRESH_CONCURRENCY = 1
+const QUOTE_REFRESH_CONCURRENCY = 6
+const TOP_REFRESH_CONCURRENCY = 4
+const DEEP_REFRESH_CONCURRENCY = 4
 const CHART_CACHE_VERSION = 2
 const QUOTE_MISSING_RETRY_HOURS = 2
 const SLOW_BUILD_LOG_MS = 4000
@@ -504,6 +515,37 @@ const STOCK_DB_COLUMNS = {
   net_margin: 'REAL',
   debt_to_equity: 'REAL',
   dividend_yield: 'REAL',
+  peg: 'REAL',
+  ev_ebitda: 'REAL',
+  fcf_yield: 'REAL',
+  rev_growth: 'REAL',
+  eps_growth: 'REAL',
+  ma_50: 'REAL',
+  ma_200: 'REAL',
+  volume: 'REAL',
+  avg_volume: 'REAL',
+  year_high: 'REAL',
+  year_low: 'REAL',
+  beta: 'REAL',
+  gross_margin: 'REAL',
+  op_margin: 'REAL',
+  current_ratio: 'REAL',
+  country: 'TEXT',
+  enterprise_value: 'REAL',
+  ev_sales: 'REAL',
+  p_fcf: 'REAL',
+  p_ocf: 'REAL',
+  earnings_yield: 'REAL',
+  quick_ratio: 'REAL',
+  interest_coverage: 'REAL',
+  payout_ratio: 'REAL',
+  book_value_ps: 'REAL',
+  ebitda: 'REAL',
+  free_cash_flow: 'REAL',
+  operating_cash_flow: 'REAL',
+  total_debt: 'REAL',
+  total_cash: 'REAL',
+  net_debt: 'REAL',
   quote_updated_at: 'TEXT',
   financials_updated_at: 'TEXT',
   financials_attempted_at: 'TEXT',
@@ -559,6 +601,8 @@ async function ensureStockSchema(env) {
     if (!have.has(name)) await dbRun(env, `ALTER TABLE stock_data ADD COLUMN ${name} ${def}`).catch(() => {})
   }
   await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_stock_data_mkt_cap ON stock_data(mkt_cap)`).catch(() => {})
+  await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_stock_data_change_pct ON stock_data(change_pct)`).catch(() => {})
+  await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_stock_data_rev_growth ON stock_data(rev_growth)`).catch(() => {})
   await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_stock_data_sector ON stock_data(sector)`).catch(() => {})
   await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_stock_data_updated ON stock_data(updated_at)`).catch(() => {})
   await dbRun(env, `CREATE TABLE IF NOT EXISTS stock_universe (
@@ -607,6 +651,36 @@ async function ensureUserDataSchema(env) {
   await dbRun(env, `ALTER TABLE watchlists ADD COLUMN updated_at TEXT`).catch(() => {})
   await dbRun(env, `ALTER TABLE saved_screens ADD COLUMN updated_at TEXT`).catch(() => {})
   await dbRun(env, `ALTER TABLE user_preferences ADD COLUMN updated_at TEXT`).catch(() => {})
+  // Alerts: price / pct / fundamental thresholds, plus screen-membership alerts.
+  await dbRun(env, `CREATE TABLE IF NOT EXISTS alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,              -- 'price' | 'pct' | 'fundamental' | 'screen'
+    ticker TEXT,                     -- for price/pct/fundamental
+    metric TEXT,                     -- for fundamental (e.g. 'pe','roe'); price uses 'price'; pct uses 'changePct'
+    operator TEXT NOT NULL,          -- 'above' | 'below'
+    threshold REAL,                  -- numeric trigger value
+    screen_id INTEGER,               -- for screen alerts (FK saved_screens.id)
+    label TEXT,                      -- human-readable summary
+    status TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'paused'
+    last_value REAL,                 -- last observed value (for screen alerts: stored as JSON ticker set in last_meta)
+    last_meta TEXT,                  -- JSON snapshot (e.g. screen membership)
+    last_triggered_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).catch(() => {})
+  await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id)`).catch(() => {})
+  await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(status)`).catch(() => {})
+  await dbRun(env, `CREATE TABLE IF NOT EXISTS alert_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
+    ticker TEXT,
+    message TEXT,
+    value REAL,
+    emailed INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).catch(() => {})
+  await dbRun(env, `CREATE INDEX IF NOT EXISTS idx_alert_events_user ON alert_events(user_id)`).catch(() => {})
   return true
 }
 async function ensureDB(env) {
@@ -637,6 +711,16 @@ const pctAny = v => {
   const x = n(String(v ?? '').replace('%', '').trim())
   if (x == null) return null
   return r2(Math.abs(x) <= 1 ? x * 100 : x)
+}
+// pctFmp: for FMP /ratios and /ratios-ttm fields that are ALWAYS stored as decimal ratios
+// (e.g. returnOnEquityTTM=1.4945 means 149.45%, returnOnAssetsTTM=0.2831 means 28.31%)
+// Always multiplies by 100. Caps at ±999% to discard negative-equity distortions.
+const pctFmp = v => {
+  const x = n(String(v ?? '').replace('%', '').trim())
+  if (x == null) return null
+  const pctVal = r2(x * 100)
+  if (pctVal == null) return null
+  return Math.abs(pctVal) > 999 ? null : pctVal
 }
 const cleanYield = v => {
   const y = pctAny(v)
@@ -1135,11 +1219,11 @@ async function avOverview(ticker, env) {
       eps: r2(n(o.EPS)),
       bookValue: r2(n(o.BookValue)),
       dividendYield: cleanYield(o.DividendYield),
-      grossMargin: pctAny(o.GrossProfitTTM && o.RevenueTTM ? n(o.GrossProfitTTM) / n(o.RevenueTTM) : null),
-      opMargin: pctAny(o.OperatingMarginTTM),
-      netMargin: pctAny(o.ProfitMargin),
-      roe: pctAny(o.ReturnOnEquityTTM),
-      roa: pctAny(o.ReturnOnAssetsTTM),
+      grossMargin: pctFmp(o.GrossProfitTTM && o.RevenueTTM ? n(o.GrossProfitTTM) / n(o.RevenueTTM) : null),
+      opMargin: pctFmp(o.OperatingMarginTTM),
+      netMargin: pctFmp(o.ProfitMargin),
+      roe: pctFmp(o.ReturnOnEquityTTM),
+      roa: pctFmp(o.ReturnOnAssetsTTM),
       salesGrowth3y: pctAny(o.QuarterlyRevenueGrowthYOY),
       profitGrowth3y: pctAny(o.QuarterlyEarningsGrowthYOY),
     }
@@ -1357,7 +1441,9 @@ function fmpInstitutionalV4Allowed(env) {
   return /premium|ultimate|business|enterprise|professional|pro/.test(plan)
 }
 function fmpAllowsLegacyV3Fallback(env) {
-  return !!fmpKey(env)
+  // FMP shut off v3 legacy endpoints for Starter plan (returns 403).
+  // All data must come from /stable/ endpoints only.
+  return false
 }
 function apiStats(env) {
   if (!env) return {}
@@ -1481,11 +1567,15 @@ async function fmpQuote(ticker, env) {
       high: r2(n(q.dayHigh)),
       low: r2(n(q.dayLow)),
       prev: r2(n(q.previousClose)),
-      changePct: r2(n(q.changesPercentage)),
+      changePct: r2(first(n(q.changePercentage), n(q.changesPercentage))),
       marketCap: n(q.marketCap),
       pe: r2(n(q.pe)),
       eps: r2(n(q.eps)),
       volume: n(q.volume),
+      ma50: r2(n(q.priceAvg50)),
+      ma200: r2(n(q.priceAvg200)),
+      yearHigh: r2(n(q.yearHigh)),
+      yearLow: r2(n(q.yearLow)),
     }
   } catch { return null }
 }
@@ -1498,11 +1588,11 @@ async function fmpRatios(ticker, env) {
     if (!Array.isArray(data) || !data.length) return null
     const r = data[0]
     return {
-      pe: r2(first(n(r.priceEarningsRatioTTM), n(r.priceEarningsRatio), n(r.peRatioTTM), n(r.peRatio))),
-      pb: r2(first(n(r.priceBookValueRatioTTM), n(r.priceBookValueRatio), n(r.pbRatioTTM), n(r.pbRatio))),
+      pe: r2(first(n(r.priceToEarningsRatioTTM), n(r.priceEarningsRatioTTM), n(r.priceEarningsRatio), n(r.peRatioTTM), n(r.peRatio))),
+      pb: r2(first(n(r.priceToBookRatioTTM), n(r.priceBookValueRatioTTM), n(r.priceBookValueRatio), n(r.pbRatioTTM), n(r.pbRatio))),
       ps: r2(first(n(r.priceToSalesRatioTTM), n(r.priceToSalesRatio), n(r.psRatioTTM), n(r.psRatio))),
-      roce: pctAny(r.returnOnCapitalEmployed),
-      peg:  r2(n(r.priceEarningsToGrowthRatio)),
+      roce: pctFmp(r.returnOnCapitalEmployed),
+      peg:  r2(first(n(r.priceToEarningsGrowthRatioTTM), n(r.priceEarningsToGrowthRatio))),
       debtToAssets: r2(n(r.debtRatio)),
       debtToEquity: r2(first(
         n(r.debtToEquityRatioTTM),
@@ -1512,22 +1602,51 @@ async function fmpRatios(ticker, env) {
         n(r.debtEquityRatioTTM),
         n(r.debtEquityRatio)
       )),
-      interestCov:  r2(n(r.interestCoverage)),
+      interestCov:  r2(first(n(r.interestCoverageRatioTTM), n(r.interestCoverage))),
       assetTurnover:r2(n(r.assetTurnover)),
       invTurnover:  r2(n(r.inventoryTurnover)),
       recTurnover:  r2(n(r.receivablesTurnover)),
       cashRatio:    r2(n(r.cashRatio)),
       currentRatio: r2(first(n(r.currentRatioTTM), n(r.currentRatio))),
       quickRatio:   r2(first(n(r.quickRatioTTM), n(r.quickRatio))),
-      grossMargin:  pctAny(first(r.grossProfitMarginTTM, r.grossProfitMargin)),
-      opMargin:     pctAny(first(r.operatingProfitMarginTTM, r.operatingProfitMargin)),
-      netMargin:    pctAny(first(r.netProfitMarginTTM, r.netProfitMargin)),
-      roe:          pctAny(first(r.returnOnEquityTTM, r.returnOnEquity)),
-      roa:          pctAny(first(r.returnOnAssetsTTM, r.returnOnAssets)),
+      grossMargin:  pctFmp(first(r.grossProfitMarginTTM, r.grossProfitMargin)),
+      opMargin:     pctFmp(first(r.operatingProfitMarginTTM, r.operatingProfitMargin)),
+      netMargin:    pctFmp(first(r.netProfitMarginTTM, r.netProfitMargin)),
+      roe:          pctFmp(first(r.returnOnEquityTTM, r.returnOnEquity)),
+      roa:          pctFmp(first(r.returnOnAssetsTTM, r.returnOnAssets)),
       dividendYield:cleanYield(first(r.dividendYieldTTM, r.dividendYield)),
       fcfYield:     r.freeCashFlowYield != null ? r2(n(r.freeCashFlowYield) * 100) : null,
-      evEbitda:     r2(n(r.enterpriseValueMultiple)),
+      evEbitda:     r2(first(n(r.enterpriseValueMultipleTTM), n(r.enterpriseValueMultiple))),
+      earningsYield: r.earningsYieldTTM != null ? r2(n(r.earningsYieldTTM) * 100) : (r.earningsYield != null ? r2(n(r.earningsYield) * 100) : null),
+      payoutRatio:  r.payoutRatioTTM != null ? r2(n(r.payoutRatioTTM) * 100) : (r.payoutRatio != null ? r2(n(r.payoutRatio) * 100) : (r.dividendPayoutRatioTTM != null ? r2(n(r.dividendPayoutRatioTTM) * 100) : null)),
+      priceToFreeCashFlow: r2(first(n(r.priceToFreeCashFlowsRatioTTM), n(r.priceToFreeCashFlowRatioTTM), n(r.priceToFreeCashFlowsRatio), n(r.pfcfRatioTTM))),
+      priceToOperatingCashFlow: r2(first(n(r.priceToOperatingCashFlowsRatioTTM), n(r.priceToOperatingCashFlowRatioTTM), n(r.priceToOperatingCashFlowsRatio), n(r.pocfratioTTM))),
+      evSales: r2(first(n(r.evToSalesTTM), n(r.enterpriseValueOverRevenueTTM), n(r.evToRevenueTTM))),
+      bookValuePerShare: r2(first(n(r.bookValuePerShareTTM), n(r.bookValuePerShare))),
     }
+  } catch { return null }
+}
+// Indicated annual dividend per share (latest declared × payments/yr) — matches
+// how stockanalysis/finance sites quote yield after a dividend change.
+async function fmpIndicatedAnnualDividend(ticker, env) {
+  try {
+    const data = await fmpGet(`/stable/dividends?symbol=${ticker}&limit=8`, env).catch(() => null)
+    if (!Array.isArray(data) || !data.length) return null
+    const recs = data.filter(d => n(d.dividend ?? d.adjDividend) != null && d.date)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    if (!recs.length) return null
+    const latest = recs[0]
+    const amt = n(latest.dividend ?? latest.adjDividend)
+    if (!amt || amt <= 0) return null
+    // Skip stale dividend history (>15 months old → likely suspended)
+    if (Date.now() - Date.parse(latest.date) > 460 * 24 * 3600 * 1000) return null
+    const freqMap = { quarterly: 4, 'semi-annual': 2, semiannual: 2, annual: 1, annually: 1, monthly: 12 }
+    let perYear = freqMap[String(latest.frequency || '').toLowerCase()] || null
+    if (!perYear && recs.length >= 2) {
+      const gapDays = (Date.parse(recs[0].date) - Date.parse(recs[1].date)) / 86400000
+      perYear = gapDays > 0 ? Math.min(12, Math.max(1, Math.round(365 / gapDays))) : 4
+    }
+    return r2(amt * (perYear || 4))
   } catch { return null }
 }
 async function fmpProfile(ticker, env) {
@@ -1537,14 +1656,18 @@ async function fmpProfile(ticker, env) {
   } catch { return null }
 }
 async function fmpOverview(ticker, env) {
-  const [quoteRes, profileRes, ratiosRes] = await Promise.allSettled([
+  const [quoteRes, profileRes, ratiosRes, kmRes, stmtRes] = await Promise.allSettled([
     fmpQuote(ticker, env),
     fmpProfile(ticker, env),
     fmpRatios(ticker, env),
+    fmpKeyMetrics(ticker, env),
+    fmpStatementDollars(ticker, env),
   ])
   const q = quoteRes.status === 'fulfilled' ? quoteRes.value : null
   const p = profileRes.status === 'fulfilled' ? profileRes.value : null
+  const km = kmRes.status === 'fulfilled' ? kmRes.value : null
   const r = ratiosRes.status === 'fulfilled' ? ratiosRes.value : null
+  const sd = stmtRes.status === 'fulfilled' ? stmtRes.value : null
   if (!q && !p && !r) return null
   const price = positiveOrNull(q?.price ?? p?.price)
   const prev = positiveOrNull(q?.prev)
@@ -1554,6 +1677,7 @@ async function fmpOverview(ticker, env) {
     exchange: p?.exchangeShortName || p?.exchange || null,
     sector: p?.sector || null,
     industry: p?.industry || null,
+    country: p?.country || null,
     website: p?.website || null,
     description: p?.description || null,
     price,
@@ -1563,20 +1687,58 @@ async function fmpOverview(ticker, env) {
     high: q?.high ?? null,
     low: q?.low ?? null,
     volume: q?.volume ?? null,
-    avgVolume: p?.volAvg ?? null,
+    avgVolume: p?.averageVolume ?? p?.volAvg ?? null,
+    ma50: q?.ma50 ?? null,
+    ma200: q?.ma200 ?? null,
+    high52: first(q?.yearHigh, p?.range ? numberOrNull(String(p.range).split('-')[1]) : null),
+    low52: first(q?.yearLow, p?.range ? numberOrNull(String(p.range).split('-')[0]) : null),
+    bookValue: r?.bookValuePerShare ?? r?.bookValuePerShareTTM ?? null,
+    sharesOutstanding: positiveOrNull(p?.sharesOutstanding) ?? null,
+    beta: p?.beta ?? null,
     mktCap: positiveOrNull(q?.marketCap ?? p?.mktCap ?? p?.marketCap),
-    pe: q?.pe ?? p?.pe ?? null,
-    pb: r?.pb ?? null,
-    ps: r?.ps ?? null,
-    roe: r?.roe ?? null,
-    roa: r?.roa ?? null,
-    roce: r?.roce ?? null,
-    grossMargin: r?.grossMargin ?? null,
-    opMargin: r?.opMargin ?? null,
-    netMargin: r?.netMargin ?? null,
-    debtToEquity: r?.debtToEquity ?? null,
-    eps: q?.eps ?? p?.eps ?? null,
-    dividendYield: p?.lastDiv && price ? cleanYield(p.lastDiv / price) : null,
+    pe: first(r?.pe, n(q?.pe), n(p?.pe)),
+    pb: r?.pb ?? r?.priceToBookRatioTTM ?? null,
+    ps: r?.ps ?? r?.priceToSalesRatioTTM ?? null,
+    roe: r?.roe ?? pctFmp(km?.returnOnEquityTTM),
+    roa: r?.roa ?? pctFmp(km?.returnOnAssetsTTM),
+    roce: r?.roce ?? pctFmp(km?.returnOnCapitalEmployedTTM),
+    grossMargin: r?.grossMargin ?? (r?.grossProfitMarginTTM != null ? pctFmp(r.grossProfitMarginTTM) : null),
+    opMargin: r?.opMargin ?? (r?.operatingProfitMarginTTM != null ? pctFmp(r.operatingProfitMarginTTM) : null),
+    netMargin: r?.netMargin ?? (r?.netProfitMarginTTM != null ? pctFmp(r.netProfitMarginTTM) : null),
+    debtToEquity: r?.debtToEquity ?? r?.debtToEquityRatioTTM ?? null,
+    currentRatio: r?.currentRatio ?? r?.currentRatioTTM ?? null,
+    eps: (() => {
+      // Guard against ADR local-currency EPS (e.g. TSM: TWD EPS 334 vs USD price):
+      // if quote EPS wildly disagrees with the TTM P/E ratio, derive EPS from price/pe.
+      const rawEps = n(q?.eps ?? p?.eps)
+      const peRef = n(r?.pe)
+      if (rawEps != null && rawEps !== 0 && price != null && peRef != null && peRef > 0) {
+        const implied = price / rawEps
+        if (implied > peRef * 5 || (implied > 0 && implied < peRef / 5)) return r2(price / peRef)
+      }
+      if (rawEps != null) return r2(rawEps)
+      return (price != null && peRef != null && peRef > 0) ? r2(price / peRef) : null
+    })(),
+    dividendYield: p?.lastDiv && price ? cleanYield(p.lastDiv / price) : (p?.dividendYield ?? null),
+    quickRatio: r?.quickRatio ?? null,
+    interestCoverage: first(r?.interestCov, sd?.interestCoverage),
+    earningsYield: r?.earningsYield ?? null,
+    payoutRatio: r?.payoutRatio ?? null,
+    priceToFreeCashFlow: r?.priceToFreeCashFlow ?? null,
+    priceToOperatingCashFlow: r?.priceToOperatingCashFlow ?? null,
+    evSales: first(r?.evSales, n(km?.evToSalesTTM), n(km?.enterpriseValueOverRevenueTTM)),
+    enterpriseValue: first(n(km?.enterpriseValueTTM), n(km?.enterpriseValue),
+      (sd?.totalDebt != null && sd?.totalCash != null && positiveOrNull(q?.marketCap ?? p?.mktCap ?? p?.marketCap) != null)
+        ? positiveOrNull(q?.marketCap ?? p?.mktCap ?? p?.marketCap) + sd.totalDebt - sd.totalCash : null),
+    ebitda: first(sd?.ebitda, n(km?.ebitdaTTM), n(km?.ebitda)),
+    freeCashFlow: first(sd?.freeCashFlow, n(km?.freeCashFlowTTM), n(km?.freeCashFlow)),
+    operatingCashFlow: first(sd?.operatingCashFlow, n(km?.operatingCashFlowTTM), n(km?.operatingCashFlow)),
+    totalDebt: first(sd?.totalDebt, n(km?.totalDebtTTM), n(km?.totalDebt)),
+    totalCash: first(sd?.totalCash, n(km?.cashAndCashEquivalentsTTM), n(km?.cashAndShortTermInvestmentsTTM), n(km?.totalCash)),
+    netDebt: first(sd?.netDebt, n(km?.netDebtTTM), n(km?.netDebt)),
+    bookValuePs: first(r?.bookValuePerShare, r?.bookValuePerShareTTM, n(km?.bookValuePerShareTTM),
+      (sd?.bookEquity != null && positiveOrNull(p?.sharesOutstanding) ? r2(sd.bookEquity / positiveOrNull(p.sharesOutstanding)) : null),
+      p?.bookValue, q?.bookValue),
     lastUpdated: new Date().toISOString(),
   }
 }
@@ -1586,6 +1748,46 @@ async function fmpKeyMetrics(ticker, env) {
     if ((!Array.isArray(data) || !data.length) && fmpAllowsLegacyV3Fallback(env)) data = await fmpGet(`/v3/key-metrics-ttm/${ticker}`, env).catch(() => null)
     return Array.isArray(data) ? data[0] || null : (isPlainObject(data) ? data : null)
   } catch { return null }
+}
+// Fetch TTM dollar values from the quarterly statements (Starter-plan friendly).
+// Flow items (ebitda/fcf/ocf/interest) = sum of latest 4 quarters.
+// Balance items (debt/cash/netDebt/equity) = most recent quarter snapshot.
+async function fmpStatementDollars(ticker, env) {
+  try {
+    const [incRaw, cfRaw, balRaw] = await Promise.all([
+      fmpGet(`/stable/income-statement?symbol=${ticker}&period=quarter&limit=4`, env).catch(() => null),
+      fmpGet(`/stable/cash-flow-statement?symbol=${ticker}&period=quarter&limit=4`, env).catch(() => null),
+      fmpGet(`/stable/balance-sheet-statement?symbol=${ticker}&period=quarter&limit=1`, env).catch(() => null),
+    ])
+    const inc = Array.isArray(incRaw) ? incRaw : []
+    const cf = Array.isArray(cfRaw) ? cfRaw : []
+    const bal = Array.isArray(balRaw) ? balRaw[0] : null
+    if (!inc.length && !cf.length && !bal) return null
+    const sum4 = (rows, keys) => {
+      const vals = rows.slice(0, 4).map(r => first(...keys.map(k => n(r?.[k]))))
+      const present = vals.filter(v => v != null)
+      return present.length ? present.reduce((a, b) => a + b, 0) : null
+    }
+    const ebitda = sum4(inc, ['ebitda'])
+    const opIncome = sum4(inc, ['operatingIncome', 'operatingIncomeLoss'])
+    const interestExp = sum4(inc, ['interestExpense', 'interestExpenseNonOperating'])
+    const interestAbs = interestExp != null ? Math.abs(interestExp) : null
+    const totalDebt = bal ? first(n(bal.totalDebt), n(bal.shortTermDebt) + n(bal.longTermDebt)) : null
+    const totalCash = bal ? first(n(bal.cashAndShortTermInvestments), n(bal.cashAndCashEquivalents)) : null
+    const equity = bal ? first(n(bal.totalStockholdersEquity), n(bal.totalEquity)) : null
+    return {
+      ebitda,
+      freeCashFlow: sum4(cf, ['freeCashFlow']),
+      operatingCashFlow: sum4(cf, ['operatingCashFlow', 'netCashProvidedByOperatingActivities']),
+      totalDebt,
+      totalCash,
+      netDebt: bal ? first(n(bal.netDebt), (totalDebt != null && totalCash != null ? totalDebt - totalCash : null)) : null,
+      bookEquity: equity,
+      interestCoverage: opIncome != null && interestAbs ? r2(opIncome / interestAbs) : null,
+    }
+  } catch {
+    return null
+  }
 }
 async function fmpGrowth(ticker, env) {
   try {
@@ -1931,6 +2133,140 @@ async function fmpOwnershipSummary(ticker, env) {
   return null
 }
 
+// Quarter-by-quarter institutional ownership trend (Screener.in-style history).
+// Returns oldest→newest so the frontend can draw a left-to-right trend.
+async function fmpOwnershipHistory(ticker, env) {
+  if (!fmpInstitutionalV4Allowed(env)) return []
+  const paths = [
+    `/v4/institutional-ownership/symbol-ownership?symbol=${ticker}&includeCurrentQuarter=true`,
+    `/v4/institutional-ownership/symbol-ownership?symbol=${ticker}`,
+  ]
+  for (const path of paths) {
+    try {
+      const data = await fmpGet(path, env)
+      if (!Array.isArray(data) || !data.length) continue
+      const rows = data
+        .map(r => ({
+          date: r.date || r.filingDate || null,
+          ownershipPct: pctAny(first(r.institutionalOwnershipPercentage, r.ownershipPercent, r.percentOfSharesOutstanding)),
+          investors: n(r.investorsHolding),
+          shares: first(n(r.numberOf13Fshares), n(r.investorsHolding), n(r.totalSharesHeld)),
+          value: first(n(r.totalInvested), n(r.institutionalValue), n(r.totalValue)),
+          newPositions: n(r.newPositions),
+          closedPositions: n(r.closedPositions),
+          increasedPositions: n(r.increasedPositions),
+          reducedPositions: n(r.reducedPositions),
+        }))
+        .filter(x => x.date)
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+      // Keep the most recent 12 quarters, oldest first.
+      if (rows.length) return rows.slice(-12)
+    } catch {}
+  }
+  return []
+}
+
+// SEC EDGAR fallback: when commercial providers return nothing, resolve the
+// issuer's CIK and surface the latest ownership-relevant filings (Forms 3/4/5
+// = insiders, SC 13D/G = >5% beneficial owners) as a graceful fallback so the
+// panel is never empty for an SEC-registered US ticker.
+function secQuarterKey(dateStr) {
+  if (!dateStr) return null
+  const dt = new Date(dateStr)
+  if (isNaN(dt)) return null
+  return `${dt.getUTCFullYear()}-Q${Math.floor(dt.getUTCMonth() / 3) + 1}`
+}
+
+// Free SEC-native ownership signals (no FMP dependency):
+//  1) Shares-outstanding history from XBRL companyconcept — reveals buybacks /
+//     dilution quarter over quarter (the most useful ownership-structure trend).
+//  2) Quarterly insider (Forms 3/4/5) and >5% beneficial-owner (SC 13D/G)
+//     filing counts from the submissions feed — a proxy for insider churn.
+//  3) Latest individual ownership filings as a documents fallback list.
+// 13F "% held by institutions over time" is intentionally NOT attempted here:
+// EDGAR is filer-indexed, so that requires an offline aggregation pipeline.
+async function secOwnershipData(ticker) {
+  try {
+    const cik = await secCIK(ticker)
+    if (!cik) return null
+    const [subRes, soRes] = await Promise.all([
+      fetchWithTimeout(
+        `https://data.sec.gov/submissions/CIK${cik}.json`,
+        { headers: { 'User-Agent': SECU, 'Accept': 'application/json' } },
+        SEC_FETCH_TIMEOUT_MS, `SEC submissions ${ticker}`
+      ).catch(() => null),
+      fetchWithTimeout(
+        `https://data.sec.gov/api/xbrl/companyconcept/CIK${cik}/dei/EntityCommonStockSharesOutstanding.json`,
+        { headers: { 'User-Agent': SECU, 'Accept': 'application/json' } },
+        SEC_FETCH_TIMEOUT_MS, `SEC shares ${ticker}`
+      ).catch(() => null),
+    ])
+
+    let entityName = null
+    const filings = []
+    const filingActivity = new Map() // quarter -> { insider, major }
+    if (subRes?.ok) {
+      const data = await subRes.json().catch(() => null)
+      entityName = data?.name || null
+      const recent = data?.filings?.recent
+      if (recent?.form) {
+        const forms = recent.form
+        const dates = recent.filingDate || []
+        const accession = recent.accessionNumber || []
+        const primaryDoc = recent.primaryDocument || []
+        const wanted = /^(3|4|5|SC 13[DG](\/A)?)$/i
+        for (let i = 0; i < forms.length; i++) {
+          const form = String(forms[i] || '').trim()
+          if (!wanted.test(form)) continue
+          const qk = secQuarterKey(dates[i])
+          if (qk) {
+            if (!filingActivity.has(qk)) filingActivity.set(qk, { insider: 0, major: 0 })
+            const b = filingActivity.get(qk)
+            if (/^(3|4|5)$/.test(form)) b.insider++; else b.major++
+          }
+          if (filings.length < 15) {
+            const acc = String(accession[i] || '').replace(/-/g, '')
+            filings.push({
+              form,
+              date: dates[i] || null,
+              url: acc ? `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${acc}/${primaryDoc[i] || ''}` : null,
+            })
+          }
+        }
+      }
+    }
+
+    // Shares outstanding: one point per fiscal period, newest 12.
+    let sharesHistory = []
+    if (soRes?.ok) {
+      const sd = await soRes.json().catch(() => null)
+      const units = sd?.units?.shares || []
+      const byEnd = new Map()
+      for (const u of units) {
+        if (!u.end || u.val == null) continue
+        // Prefer the latest-filed value for a given period end.
+        const prev = byEnd.get(u.end)
+        if (!prev || new Date(u.filed || 0) >= new Date(prev.filed || 0)) {
+          byEnd.set(u.end, { end: u.end, val: n(u.val), form: u.form, fy: u.fy, fp: u.fp, filed: u.filed })
+        }
+      }
+      sharesHistory = [...byEnd.values()]
+        .sort((a, b) => new Date(a.end) - new Date(b.end))
+        .slice(-12)
+        .map(x => ({ date: x.end, shares: x.val, period: x.fp === 'FY' ? 'FY' : (x.fp || ''), form: x.form }))
+    }
+
+    // Quarterly filing-activity rows, oldest→newest, newest 8.
+    const activity = [...filingActivity.entries()]
+      .map(([quarter, v]) => ({ quarter, insider: v.insider, major: v.major }))
+      .sort((a, b) => a.quarter.localeCompare(b.quarter))
+      .slice(-8)
+
+    if (!sharesHistory.length && !activity.length && !filings.length) return null
+    return { cik, entityName, sharesHistory, filingActivity: activity, filings, source: 'sec_edgar' }
+  } catch { return null }
+}
+
 function normalizeHolder(h) {
   return {
     name: h.holder || h.name || h.organization || h.investorName || h.ownerName,
@@ -2115,7 +2451,7 @@ async function polygonRatios(ticker, env) {
       netMargin: revenue && netIncome != null ? r2((netIncome / revenue) * 100) : null,
       roe: equity && netIncome != null ? r2((netIncome / equity) * 100) : null,
       roa: assets && netIncome != null ? r2((netIncome / assets) * 100) : null,
-      roce: assets && liabilities != null && opIncome != null ? r2((opIncome / (assets - liabilities)) * 100) : null,
+      roce: assets && currLiab != null && opIncome != null && (assets - currLiab) !== 0 ? r2((opIncome / (assets - currLiab)) * 100) : null,
       currentRatio: currAssets && currLiab ? r2(currAssets / currLiab) : null,
       quickRatio: currAssets != null && currLiab ? r2((currAssets - (inventory || 0)) / currLiab) : null,
       cashRatio: cash != null && currLiab ? r2(cash / currLiab) : null,
@@ -2502,7 +2838,7 @@ function calcRatiosFromFinancials(fins, ov) {
       evRevenue: ev && sales ? r2(ev / sales) : null,
       roe: eq && netProf != null ? r2((netProf / eq) * 100) : null,
       roa: ta && netProf ? r2((netProf / ta) * 100) : null,
-      roce: ta && tl != null && opProf != null && (ta - tl) !== 0 ? r2((opProf / (ta - tl)) * 100) : null,
+      roce: ta && cl != null && opProf != null && (ta - cl) !== 0 ? r2((opProf / (ta - cl)) * 100) : null,
       opMargin: sales && opProf ? r2((opProf / sales) * 100) : null,
       netMargin: sales && netProf ? r2((netProf / sales) * 100) : null,
       grossMargin: (sales && a.expenses && last(a.expenses) != null) ? r2(((sales - last(a.expenses)) / sales) * 100) : null,
@@ -2518,6 +2854,31 @@ function calcRatiosFromFinancials(fins, ov) {
     console.log('Ratio calc failed:', e.message)
     return {}
   }
+}
+
+// Nulls out ratios that are internally inconsistent or meaningless for the company
+// type. Safe to call with missing financials/overview (contextual rules skipped).
+function applyRatioConsistencyGuards(rt, fins = null, ov = null) {
+  if (!rt || typeof rt !== 'object') return rt
+  const last = arr => Array.isArray(arr) && arr.length ? arr[arr.length - 1] : null
+  // Negative/zero FCF → P/FCF meaningless
+  const fcfBS = fins ? last(fins.cashflow?.freeCashFlow) : null
+  if (rt.priceToFreeCashFlow != null && ((fcfBS != null && fcfBS <= 0) || (rt.fcfYield != null && rt.fcfYield <= 0) || rt.priceToFreeCashFlow < 0)) {
+    rt.priceToFreeCashFlow = null
+  }
+  // No inventory on balance sheet → inventory turnover meaningless
+  if (fins) {
+    const invBS = last(fins.balance?.inventory)
+    if ((invBS == null || invBS === 0) && rt.inventoryTurnover != null && fins.balance?.totalAssets?.length) rt.inventoryTurnover = null
+  }
+  // Banks: standard liquidity/leverage/turnover ratios are meaningless
+  const industryStr = ov ? `${ov.industry || ''} ${ov.sector || ''}` : ''
+  if (/\bbank/i.test(industryStr)) {
+    for (const key of ['currentRatio','quickRatio','cashRatio','interestCoverage','inventoryTurnover','assetTurnover','receivablesTurnover','evEbitda','evRevenue','grossMargin','fcfYield','priceToFreeCashFlow','debtToEquity','debtToAssets']) {
+      if (rt[key] != null) rt[key] = null
+    }
+  }
+  return rt
 }
 
 function calcDerivedMetrics(fins, ov, rt = {}) {
@@ -2577,7 +2938,7 @@ function calcDerivedMetrics(fins, ov, rt = {}) {
     avgRoe5y: avg(roeSeries, 5),
     debt: debtM,
     enterpriseValue,
-    priceToFreeCashFlow: marketCapM != null && fcfM ? r2(marketCapM / fcfM) : null,
+    priceToFreeCashFlow: marketCapM != null && fcfM > 0 ? r2(marketCapM / fcfM) : null,
     fcfYield: marketCapM != null && fcfM != null ? r2((fcfM / marketCapM) * 100) : rt.fcfYield,
     interestCoverage: interestM && last(annual.opProfit) != null ? r2(last(annual.opProfit) / interestM) : null,
     peg: pe != null && pegGrowth != null && pegGrowth > 0 ? r2(pe / pegGrowth) : null,
@@ -2638,9 +2999,13 @@ function composeBestFinancials(candidates = []) {
     composed.growth = composed.growth || {}
     composed.growth.stockCagr = mergeDefined(composed.growth.stockCagr || {}, stockCagr)
   }
-  composed.balanceSheetSource = [bestAnnual?.balanceSheetSource, bestBalance?.balanceSheetSource, bestCashflow?.balanceSheetSource]
+  const rawBss = [bestAnnual?.balanceSheetSource, bestBalance?.balanceSheetSource, bestCashflow?.balanceSheetSource]
     .filter(Boolean)
     .join('+') || base?.balanceSheetSource || null
+  // Deduplicate repeated source tags (e.g. "fmp_starter+fmp_starter+..." → "fmp_starter")
+  composed.balanceSheetSource = rawBss
+    ? [...new Set(rawBss.split('+').filter(Boolean))].join('+').slice(0, 100)
+    : null
   composed.balanceSheetYears = Math.max(...usable.map(financialAnnualHeadersCount), 0)
   return composed
 }
@@ -2689,8 +3054,58 @@ async function buildStockData(ticker, env, opts = {}) {
   const overviewStartedAt = Date.now()
   const canReuseStoredOverview = !!(storedOverview && positiveOrNull(storedOverview.price) && positiveOrNull(storedOverview.mktCap))
   if (canReuseStoredOverview) {
+    // Enrich stored overview with fields that may be missing from older cached records.
+    // Company-profile fields (name/description/sector/industry/website) can get wiped when
+    // a quote-only / bulk refresh overwrites the overview — and once price+mktCap are present
+    // the reuse path below never re-fetched them, locking the gaps in permanently. Detect
+    // those gaps and repair them from the FMP profile too.
+    const emptyText = v => v == null || String(v).trim() === '' || String(v).trim() === '—'
+    const nameMissing = emptyText(storedOverview.name) || storedOverview.name === ticker || storedOverview.name === deepTicker
+    const profileMissing = nameMissing
+      || emptyText(storedOverview.description)
+      || emptyText(storedOverview.sector)
+      || emptyText(storedOverview.industry)
+      || emptyText(storedOverview.website)
+    const missingFields = storedOverview.high52 == null || storedOverview.avgVolume == null || storedOverview.beta == null || profileMissing
+    let enriched = {}
+    // IMPORTANT: never fire a live FMP profile fetch on a normal cache-hit page view.
+    // Doing so meant every view of any stock with a missing field (thousands of them)
+    // hit FMP through the Worker, exhausting the Cloudflare request/subrequest budget
+    // (HTTP 429 / error 1027). Self-heal now only runs when explicitly requested
+    // (deep/admin refresh) AND at most once per ticker per day, guarded by a KV lock.
+    const allowSelfHeal = opts.enrichProfile === true || opts.forceFinancialRefresh === true
+    let selfHealAllowed = false
+    if (missingFields && allowSelfHeal) {
+      try {
+        const lockKey = `heal:${deepTicker}`
+        const already = env.KV ? await env.KV.get(lockKey) : null
+        if (!already) {
+          selfHealAllowed = true
+          if (env.KV) await env.KV.put(lockKey, '1', { expirationTtl: 86400 }).catch(() => {})
+        }
+      } catch (_) { selfHealAllowed = false }
+    }
+    if (missingFields && selfHealAllowed) {
+      try {
+        const fp = await fmpProfile(deepTicker, env)
+        if (fp) {
+          enriched.high52 = fp.range ? numberOrNull(String(fp.range).split('-')[1]) : null
+          enriched.low52  = fp.range ? numberOrNull(String(fp.range).split('-')[0]) : null
+          enriched.avgVolume = fp.averageVolume ?? fp.volAvg ?? null
+          enriched.beta = fp.beta ?? null
+          enriched.sharesOutstanding = positiveOrNull(fp.sharesOutstanding) ?? null
+          // Backfill profile fields only when the stored value is empty (don't clobber good data)
+          if (nameMissing && fp.companyName) enriched.name = fp.companyName
+          if (emptyText(storedOverview.description) && fp.description) enriched.description = fp.description
+          if (emptyText(storedOverview.sector) && fp.sector) enriched.sector = fp.sector
+          if (emptyText(storedOverview.industry) && fp.industry) enriched.industry = fp.industry
+          if (emptyText(storedOverview.website) && fp.website) enriched.website = fp.website
+        }
+      } catch (_) {}
+    }
     result.overview = {
       ...storedOverview,
+      ...enriched,
       ticker,
       lastUpdated: storedOverview.lastUpdated || stored?.updatedAt || result.updatedAt,
     }
@@ -2766,11 +3181,11 @@ async function buildStockData(ticker, env, opts = {}) {
       bookValue: r2(first(raw(k.bookValue), q.bookValue, av.bookValue)),
       pb: r2(first(raw(k.priceToBook), q.priceToBook, av.pb)),
       ps: r2(first(raw(d.priceToSalesTrailing12Months), q.priceToSalesTrailing12Months, av.ps)),
-      roe: first(pctAny(first(raw(f.returnOnEquity))), av.roe),
-      roa: first(pctAny(first(raw(f.returnOnAssets))), av.roa),
-      grossMargin: first(pctAny(first(raw(f.grossMargins))), av.grossMargin),
-      opMargin: first(pctAny(first(raw(f.operatingMargins))), av.opMargin),
-      netMargin: first(pctAny(first(raw(f.profitMargins))), av.netMargin),
+      roe: first(pctFmp(first(raw(f.returnOnEquity))), av.roe),
+      roa: first(pctFmp(first(raw(f.returnOnAssets))), av.roa),
+      grossMargin: first(pctFmp(first(raw(f.grossMargins))), av.grossMargin),
+      opMargin: first(pctFmp(first(raw(f.operatingMargins))), av.opMargin),
+      netMargin: first(pctFmp(first(raw(f.profitMargins))), av.netMargin),
       debtToEquity: f.debtToEquity?.raw != null ? r2(f.debtToEquity.raw / 100) : null,
       currentRatio: r2(first(raw(f.currentRatio))),
       quickRatio: r2(first(raw(f.quickRatio))),
@@ -2903,6 +3318,7 @@ async function buildStockData(ticker, env, opts = {}) {
       skipSlowRatioSources ? Promise.resolve({}) : (Object.keys(overviewAlpha).length ? Promise.resolve(overviewAlpha) : avOverview(primaryTicker, env)),
       bulkSafe ? Promise.resolve(null) : fmpGrowth(deepTicker, env),
     ])
+    const indicatedDivRes = bulkSafe ? null : await fmpIndicatedAnnualDividend(deepTicker, env).catch(() => null)
     const s = yRes.status === 'fulfilled' ? (yRes.value || {}) : {}
     const fmp = fRes.status === 'fulfilled' ? fRes.value : null
     const q = qRes.status === 'fulfilled' ? (qRes.value || {}) : {}
@@ -2913,6 +3329,11 @@ async function buildStockData(ticker, env, opts = {}) {
     const fg = fgRes.status === 'fulfilled' ? (fgRes.value || {}) : {}
     const ov = result.overview || {}
     const ratios = buildRatioSnapshot({ summary: s, fmp, quote: q, km, av, fh, pg, fg, overview: ov })
+    // Indicated annual dividend (latest declared × frequency) beats trailing TTM yield
+    if (indicatedDivRes != null && ov.price > 0) {
+      const iy = r2((indicatedDivRes / ov.price) * 100)
+      if (iy != null && iy >= 0 && iy <= 25) ratios.dividendYield = iy
+    }
     result.ratios = mergeDefined(ratioSeed, ratios)
     if (result.ratios.pe == null && ov.price && ov.eps != null && ov.eps !== 0) result.ratios.pe = r2(ov.price / ov.eps)
     if (result.ratios.earningsYield == null && ov.price && ov.eps != null) result.ratios.earningsYield = r2((ov.eps / ov.price) * 100)
@@ -2929,11 +3350,16 @@ async function buildStockData(ticker, env, opts = {}) {
 
   // ── 4. Compute historical price returns from chart ──
   const returnsStartedAt = Date.now()
-  const needReturnRefresh = !skipReturns && !hasReturnCoverage(result.ratios)
+  const RETURNS_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000  // refresh cached returns every 3 days
+  const returnsStale = !result.ratios?.returnsAsOf || (Date.now() - Date.parse(result.ratios.returnsAsOf)) > RETURNS_MAX_AGE_MS
+  const needReturnRefresh = !skipReturns && (!hasReturnCoverage(result.ratios) || returnsStale)
   if (needReturnRefresh) try {
     const returns = await computeReturns(ticker)
     const { stockCagr, ...returnMetrics } = returns || {}
-    if (result.ratios) Object.assign(result.ratios, returnMetrics)
+    if (result.ratios && Object.keys(returnMetrics).length) {
+      Object.assign(result.ratios, returnMetrics)
+      result.ratios.returnsAsOf = new Date().toISOString()
+    }
     if (stockCagr && result.financials) {
       result.financials.growth = result.financials.growth || {}
       result.financials.growth.stockCagr = mergeDefined(result.financials.growth.stockCagr || {}, stockCagr)
@@ -2967,6 +3393,7 @@ async function buildStockData(ticker, env, opts = {}) {
     for (const [key, value] of Object.entries(derived)) {
       if (rt[key] == null && value != null) rt[key] = value
     }
+    applyRatioConsistencyGuards(rt, result.financials, ov)
   }
 
   if (timings) {
@@ -3035,6 +3462,11 @@ async function route(req, env, ctx) {
     if (req.method === 'GET')    return getUserPreferences(req, env)
     if (req.method === 'POST')   return saveUserPreferences(req, env)
   }
+  if (path === '/user/alerts') {
+    if (req.method === 'GET')    return getUserAlerts(req, env)
+    if (req.method === 'POST')   return createAlert(req, env)
+    if (req.method === 'DELETE') return deleteAlert(req, env)
+  }
   
   const m = path.match(/^\/stock\/([A-Za-z0-9.^-]+)\/([a-z]+)$/)
   if (m) {
@@ -3074,6 +3506,7 @@ async function route(req, env, ctx) {
   
   if (path === '/market/trending') return j(await getTrending(env))
   if (path === '/market/indices')  return j(await getIndices())
+  if (path === '/market/news')     return j(await getMarketNews(env, url.searchParams.get('limit')))
   if (path === '/search')          return j(await searchStocks(url.searchParams.get('q') || '', env))
 
   // ── Blog API ──────────────────────────────────────────────────────────────
@@ -3103,6 +3536,9 @@ async function route(req, env, ctx) {
     force: ['1', 'true', 'yes'].includes(String(url.searchParams.get('force') || '').toLowerCase())
   }))
   if (path === '/admin/refresh-ticker') return j(await refreshOneTicker(env, url.searchParams.get('ticker')))
+  if (path === '/admin/patch-fmp-fields') return runAdminRefresh('patch-fmp-fields', () => patchFmpFields(env, adminLimit(url, 'limit', 200), Number(url.searchParams.get('offset') || 0)))
+  if (path === '/admin/patch-names') return runAdminRefresh('patch-names', () => patchStockNames(env, adminLimit(url, 'limit', 100), Number(url.searchParams.get('offset') || 0)))
+  if (path === '/admin/backfill-descriptions') return runAdminRefresh('backfill-descriptions', () => backfillDescriptions(env, adminLimit(url, 'limit', 100), Number(url.searchParams.get('minWords') || 100)))
   if (path === '/admin/init-db') return j(await initDB(env))
   if (path === '/admin/refresh-debug') return j(await getRefreshDebug(env))
   if (path === '/admin/fmp-debug') return j(await debugFmpDeepTicker(env, url.searchParams.get('ticker') || 'AAPL'))
@@ -3148,7 +3584,7 @@ async function handleBlogCreate(req, env) {
   let body
   try { body = await req.json() } catch { return j({ error: 'Invalid JSON' }, 400) }
 
-  const { title, slug, description, content, cluster, faqs, published_at } = body || {}
+  const { title, slug, description, content, cluster, faqs, published_at, image_url } = body || {}
   if (!title || !slug || !description || !content || !published_at) {
     return j({ error: 'Missing required fields: title, slug, description, content, published_at' }, 400)
   }
@@ -3158,13 +3594,14 @@ async function handleBlogCreate(req, env) {
 
   try {
     await env.DB.prepare(
-      `INSERT INTO blog_posts (slug, title, description, content, cluster, faqs, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO blog_posts (slug, title, description, content, cluster, faqs, published_at, image_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       slug, title, description, content,
       cluster || 'Screening Guides',
       JSON.stringify(faqs || []),
-      published_at
+      published_at,
+      image_url || null
     ).run()
     return j({ success: true, slug })
   } catch (e) {
@@ -3370,6 +3807,76 @@ async function deleteScreen(req, env) {
   if (env.SP_DB) await dbRun(env, 'DELETE FROM saved_screens WHERE id=? AND user_id=?', [id, user.id])
   return j({ ok: true })
 }
+const ALERT_TYPES = ['price', 'pct', 'fundamental', 'screen']
+const ALERT_OPERATORS = ['above', 'below']
+const ALERT_FUNDAMENTAL_METRICS = ['pe', 'pb', 'ps', 'peg', 'roe', 'roce', 'roa', 'dividendYield', 'netMargin', 'opm', 'debtToEquity', 'marketCap', 'eps', 'evEbitda', 'price']
+
+function buildAlertLabel(a) {
+  const op = a.operator === 'below' ? '<' : '>'
+  if (a.type === 'price') return `${a.ticker} price ${op} ${a.threshold}`
+  if (a.type === 'pct') return `${a.ticker} daily change ${op} ${a.threshold}%`
+  if (a.type === 'fundamental') return `${a.ticker} ${a.metric} ${op} ${a.threshold}`
+  if (a.type === 'screen') return `Screen membership changes`
+  return 'Alert'
+}
+
+async function getUserAlerts(req, env) {
+  const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
+  await ensureUserDataSchema(env)
+  if (!env.SP_DB) return j({ alerts: [] })
+  const alerts = await dbAll(env, 'SELECT * FROM alerts WHERE user_id=? ORDER BY created_at DESC', [user.id]).catch(() => [])
+  const events = await dbAll(env, 'SELECT * FROM alert_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50', [user.id]).catch(() => [])
+  return j({ alerts, events })
+}
+
+async function createAlert(req, env) {
+  const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
+  await ensureUserDataSchema(env)
+  const b = await req.json().catch(() => ({}))
+  const type = String(b?.type || '').trim()
+  if (!ALERT_TYPES.includes(type)) return j({ error: 'invalid type' }, 400)
+  const operator = String(b?.operator || 'above').trim()
+  let ticker = null, metric = null, threshold = null, screen_id = null
+
+  if (type === 'screen') {
+    screen_id = Number(b?.screen_id)
+    if (!screen_id) return j({ error: 'screen_id required' }, 400)
+    const owns = await dbGet(env, 'SELECT id FROM saved_screens WHERE id=? AND user_id=?', [screen_id, user.id]).catch(() => null)
+    if (!owns) return j({ error: 'screen not found' }, 404)
+  } else {
+    ticker = cleanTicker(b?.ticker)
+    if (!ticker) return j({ error: 'ticker required' }, 400)
+    if (!ALERT_OPERATORS.includes(operator)) return j({ error: 'invalid operator' }, 400)
+    threshold = Number(b?.threshold)
+    if (!isFinite(threshold)) return j({ error: 'threshold required' }, 400)
+    if (type === 'fundamental') {
+      metric = String(b?.metric || '').trim()
+      if (!ALERT_FUNDAMENTAL_METRICS.includes(metric)) return j({ error: 'invalid metric' }, 400)
+    } else if (type === 'price') {
+      metric = 'price'
+    } else if (type === 'pct') {
+      metric = 'changePct'
+    }
+  }
+  const draft = { type, ticker, metric, operator, threshold }
+  const label = buildAlertLabel(draft)
+  const res = await dbRun(env,
+    `INSERT INTO alerts (user_id,type,ticker,metric,operator,threshold,screen_id,label,status) VALUES (?,?,?,?,?,?,?,?,'active')`,
+    [user.id, type, ticker, metric, operator, threshold, screen_id, label]
+  ).catch(e => ({ error: e?.message }))
+  if (res?.error) return j({ error: res.error }, 500)
+  return j({ ok: true, label })
+}
+
+async function deleteAlert(req, env) {
+  const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
+  await ensureUserDataSchema(env)
+  const { id } = await req.json().catch(() => ({}))
+  if (!id) return j({ error: 'id required' }, 400)
+  if (env.SP_DB) await dbRun(env, 'DELETE FROM alerts WHERE id=? AND user_id=?', [id, user.id]).catch(() => {})
+  return j({ ok: true })
+}
+
 async function getUserPreferences(req, env) {
   const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
   await ensureUserDataSchema(env)
@@ -3445,6 +3952,37 @@ function screenerFields(ticker, data = {}) {
     net_margin: finiteNumberOrNull(rt.netMargin ?? ov.netMargin),
     debt_to_equity: meaningfulDebtToEquity(rt.debtToEquity ?? ov.debtToEquity),
     dividend_yield: nonNegativeOrNull(rt.dividendYield ?? ov.dividendYield),
+    peg: finiteOrNull(rt.peg ?? ov.peg),
+    ev_ebitda: finiteOrNull(rt.evEbitda ?? ov.evEbitda),
+    fcf_yield: finiteNumberOrNull(rt.fcfYield ?? ov.fcfYield),
+    rev_growth: finiteNumberOrNull(rt.revGrowth ?? ov.revGrowth),
+    eps_growth: finiteNumberOrNull(rt.epsGrowth ?? ov.epsGrowth),
+    ma_50: positiveOrNull(ov.ma50),
+    ma_200: positiveOrNull(ov.ma200),
+    volume: positiveOrNull(ov.volume),
+    avg_volume: positiveOrNull(ov.avgVolume),
+    year_high: positiveOrNull(ov.high52),
+    year_low: positiveOrNull(ov.low52),
+    beta: finiteOrNull(ov.beta),
+    gross_margin: finiteNumberOrNull(rt.grossMargin ?? ov.grossMargin),
+    op_margin: finiteNumberOrNull(rt.opMargin ?? ov.opMargin),
+    current_ratio: positiveOrNull(rt.currentRatio ?? ov.currentRatio),
+    country: ov.country || null,
+    enterprise_value: finiteNumberOrNull(rt.enterpriseValue ?? ov.enterpriseValue),
+    ev_sales: finiteOrNull(rt.evSales ?? ov.evSales),
+    p_fcf: finiteOrNull(rt.priceToFreeCashFlow ?? ov.priceToFreeCashFlow),
+    p_ocf: finiteOrNull(rt.priceToOperatingCashFlow ?? ov.priceToOperatingCashFlow),
+    earnings_yield: finiteNumberOrNull(rt.earningsYield ?? ov.earningsYield),
+    quick_ratio: positiveOrNull(rt.quickRatio ?? ov.quickRatio),
+    interest_coverage: finiteNumberOrNull(rt.interestCoverage ?? rt.interestCov ?? ov.interestCoverage),
+    payout_ratio: finiteNumberOrNull(rt.payoutRatio ?? ov.payoutRatio),
+    book_value_ps: finiteOrNull(ov.bookValuePs ?? rt.bookValue ?? ov.bookValue),
+    ebitda: finiteNumberOrNull(rt.ebitda ?? ov.ebitda),
+    free_cash_flow: finiteNumberOrNull(rt.freeCashFlow ?? ov.freeCashFlow),
+    operating_cash_flow: finiteNumberOrNull(rt.operatingCashFlow ?? ov.operatingCashFlow),
+    total_debt: finiteNumberOrNull(rt.totalDebt ?? ov.totalDebt),
+    total_cash: finiteNumberOrNull(rt.totalCash ?? ov.totalCash),
+    net_debt: finiteNumberOrNull(rt.netDebt ?? ov.netDebt),
   }
 }
 
@@ -3510,6 +4048,41 @@ function hydrateOverviewFromRow(row, overview = {}, ratios = null, financials = 
   setNum('marketCap', derivedMarketCap, true)
   if (ov.eps == null && ov.price != null && ov.pe) ov.eps = r2(n(ov.price) / n(ov.pe))
   if (ov.epsTtm == null && ov.eps != null) ov.epsTtm = ov.eps
+
+  // ── Price reconciliation ──
+  // The stored overview blob and the D1 `price` column can come from different
+  // snapshots, producing two contradictory prices (e.g. price=298.01 from the
+  // blob, currentPrice=272.83 from the row). Never serve two disagreeing prices:
+  // collapse both fields to a single freshest value. Prefer the row column when
+  // it is newer than the blob's lastUpdated, otherwise keep the blob price.
+  {
+    const blobPrice = n(ov.price)
+    const rowPrice = n(row?.price)
+    const blobTs = Date.parse(ov.lastUpdated || '') || 0
+    const rowTs = Date.parse(row?.quote_updated_at || row?.updated_at || '') || 0
+    let canonical = first(blobPrice, rowPrice)
+    if (blobPrice != null && rowPrice != null && blobPrice !== rowPrice) {
+      canonical = rowTs > blobTs ? rowPrice : blobPrice
+    }
+    if (canonical != null) {
+      ov.price = canonical
+      ov.currentPrice = canonical
+    }
+  }
+
+  // ── 52-week range sanity ──
+  // Stale range data can leave high52 below the live price (or low52 above it),
+  // which reads as broken to users. The current price is by definition within
+  // the trailing-52-week range, so widen the bounds to include it.
+  {
+    const px = n(ov.price)
+    if (px != null) {
+      const hi = n(ov.high52)
+      const lo = n(ov.low52)
+      if (hi != null && px > hi) ov.high52 = r2(px)
+      if (lo != null && px < lo) ov.low52 = r2(px)
+    }
+  }
 
   ov.lastUpdated = ov.lastUpdated || row?.quote_updated_at || row?.updated_at
   return ov
@@ -3682,17 +4255,27 @@ function prepareSaveStockDataStatement(env, row, ticker, data) {
   const existingFinancials = directFinancials || all.financials || {}
   const existingRatios = directRatios || all.ratios || {}
   const mergedFinancials = mergeDefined(existingFinancials, data.financials)
+  // Sanitize balanceSheetSource: deduplicate and cap to prevent unbounded string growth
+  if (mergedFinancials && typeof mergedFinancials.balanceSheetSource === 'string' && mergedFinancials.balanceSheetSource.length > 100) {
+    mergedFinancials.balanceSheetSource = [...new Set(mergedFinancials.balanceSheetSource.split('+').filter(Boolean))].join('+').slice(0, 100)
+  }
   const mergedRatios = mergeDefined(existingRatios, data.ratios)
   const mergedOverviewBase = mergeDefined(existingOverview, data.overview)
   const updatedAt = data.updatedAt || new Date().toISOString()
   const overview = hydrateOverviewFromRow(row, mergedOverviewBase, mergedRatios, mergedFinancials)
+  // Re-apply consistency guards: mergeDefined can resurrect old bad values that the build nulled out.
+  applyRatioConsistencyGuards(mergedRatios, mergedFinancials, overview)
   const f = screenerFields(ticker, { overview, financials: mergedFinancials, ratios: mergedRatios })
   const financialState = buildFinancialPersistenceState(row, mergedFinancials, updatedAt)
   return env.SP_DB.prepare(`INSERT INTO stock_data (
       ticker, overview, financials, ratios,
       name, exchange, sector, industry, price, change_pct, mkt_cap,
-      pe, pb, ps, roe, roa, roce, net_margin, debt_to_equity, dividend_yield, quote_updated_at, financials_updated_at, financials_attempted_at, financials_failed_at, financials_failed_count, updated_at, created_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pe, pb, ps, roe, roa, roce, net_margin, debt_to_equity, dividend_yield,
+      peg, ev_ebitda, fcf_yield, rev_growth, eps_growth, ma_50, ma_200,
+      volume, avg_volume, year_high, year_low, beta, gross_margin, op_margin, current_ratio, country,
+      enterprise_value, ev_sales, p_fcf, p_ocf, earnings_yield, quick_ratio, interest_coverage, payout_ratio, book_value_ps, ebitda, free_cash_flow, operating_cash_flow, total_debt, total_cash, net_debt,
+      quote_updated_at, financials_updated_at, financials_attempted_at, financials_failed_at, financials_failed_count, updated_at, created_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(ticker) DO UPDATE SET
       all_data=NULL,
       overview=COALESCE(excluded.overview, stock_data.overview),
@@ -3714,6 +4297,37 @@ function prepareSaveStockDataStatement(env, row, ticker, data) {
       net_margin=COALESCE(excluded.net_margin, stock_data.net_margin),
       debt_to_equity=COALESCE(excluded.debt_to_equity, stock_data.debt_to_equity),
       dividend_yield=COALESCE(excluded.dividend_yield, stock_data.dividend_yield),
+      peg=COALESCE(excluded.peg, stock_data.peg),
+      ev_ebitda=COALESCE(excluded.ev_ebitda, stock_data.ev_ebitda),
+      fcf_yield=COALESCE(excluded.fcf_yield, stock_data.fcf_yield),
+      rev_growth=COALESCE(excluded.rev_growth, stock_data.rev_growth),
+      eps_growth=COALESCE(excluded.eps_growth, stock_data.eps_growth),
+      ma_50=COALESCE(excluded.ma_50, stock_data.ma_50),
+      ma_200=COALESCE(excluded.ma_200, stock_data.ma_200),
+      volume=COALESCE(excluded.volume, stock_data.volume),
+      avg_volume=COALESCE(excluded.avg_volume, stock_data.avg_volume),
+      year_high=COALESCE(excluded.year_high, stock_data.year_high),
+      year_low=COALESCE(excluded.year_low, stock_data.year_low),
+      beta=COALESCE(excluded.beta, stock_data.beta),
+      gross_margin=COALESCE(excluded.gross_margin, stock_data.gross_margin),
+      op_margin=COALESCE(excluded.op_margin, stock_data.op_margin),
+      current_ratio=COALESCE(excluded.current_ratio, stock_data.current_ratio),
+      country=COALESCE(excluded.country, stock_data.country),
+      enterprise_value=COALESCE(excluded.enterprise_value, stock_data.enterprise_value),
+      ev_sales=COALESCE(excluded.ev_sales, stock_data.ev_sales),
+      p_fcf=COALESCE(excluded.p_fcf, stock_data.p_fcf),
+      p_ocf=COALESCE(excluded.p_ocf, stock_data.p_ocf),
+      earnings_yield=COALESCE(excluded.earnings_yield, stock_data.earnings_yield),
+      quick_ratio=COALESCE(excluded.quick_ratio, stock_data.quick_ratio),
+      interest_coverage=COALESCE(excluded.interest_coverage, stock_data.interest_coverage),
+      payout_ratio=COALESCE(excluded.payout_ratio, stock_data.payout_ratio),
+      book_value_ps=COALESCE(excluded.book_value_ps, stock_data.book_value_ps),
+      ebitda=COALESCE(excluded.ebitda, stock_data.ebitda),
+      free_cash_flow=COALESCE(excluded.free_cash_flow, stock_data.free_cash_flow),
+      operating_cash_flow=COALESCE(excluded.operating_cash_flow, stock_data.operating_cash_flow),
+      total_debt=COALESCE(excluded.total_debt, stock_data.total_debt),
+      total_cash=COALESCE(excluded.total_cash, stock_data.total_cash),
+      net_debt=COALESCE(excluded.net_debt, stock_data.net_debt),
       quote_updated_at=COALESCE(excluded.quote_updated_at, stock_data.quote_updated_at),
       financials_updated_at=COALESCE(excluded.financials_updated_at, stock_data.financials_updated_at),
       financials_attempted_at=COALESCE(excluded.financials_attempted_at, stock_data.financials_attempted_at),
@@ -3726,6 +4340,9 @@ function prepareSaveStockDataStatement(env, row, ticker, data) {
     ticker, toJson(overview), toJson(mergedFinancials), toJson(mergedRatios),
     f.name, f.exchange, f.sector, f.industry, f.price, f.change_pct, f.mkt_cap,
     f.pe, f.pb, f.ps, f.roe, f.roa, f.roce, f.net_margin, f.debt_to_equity, f.dividend_yield,
+    f.peg, f.ev_ebitda, f.fcf_yield, f.rev_growth, f.eps_growth, f.ma_50, f.ma_200,
+    f.volume, f.avg_volume, f.year_high, f.year_low, f.beta, f.gross_margin, f.op_margin, f.current_ratio, f.country,
+    f.enterprise_value, f.ev_sales, f.p_fcf, f.p_ocf, f.earnings_yield, f.quick_ratio, f.interest_coverage, f.payout_ratio, f.book_value_ps, f.ebitda, f.free_cash_flow, f.operating_cash_flow, f.total_debt, f.total_cash, f.net_debt,
     updatedAt,
     financialState.financialsUpdatedAt,
     financialState.financialsAttemptedAt,
@@ -3798,14 +4415,16 @@ function buildRatioSnapshot({ summary = {}, fmp = null, quote = {}, km = {}, av 
     evEbitda: first(fmp?.evEbitda, r2(raw(k2.enterpriseToEbitda)), r2(km.enterpriseValueOverEBITDATTM), av.evEbitda, pg.evEbitda),
     evRevenue: r2(first(raw(k2.enterpriseToRevenue), km.evToSalesTTM, av.evRevenue, pg.evRevenue)),
     earningsYield: first(pg.earningsYield, first(raw(d2.trailingPE), quote.trailingPE, ov.pe, km.peRatioTTM, av.pe, fh.pe) ? r2(100 / first(raw(d2.trailingPE), quote.trailingPE, ov.pe, km.peRatioTTM, av.pe, fh.pe)) : null),
-    dividendYield: first(fmp?.dividendYield, cleanYield(ov.dividendYield), av.dividendYield, fh.dividendYield),
+    dividendYield: first(fh.dividendYield, fmp?.dividendYield, cleanYield(ov.dividendYield), av.dividendYield),
     fcfYield: first(fmp?.fcfYield, km.freeCashFlowYieldTTM != null ? km.freeCashFlowYieldTTM * 100 : null, pg.fcfYield),
+    revGrowth: first(fg.revenueGrowth != null ? r2(n(fg.revenueGrowth) * 100) : null, pg.revGrowth),
+    epsGrowth: first((fg.epsgrowth ?? fg.epsGrowth) != null ? r2(n(fg.epsgrowth ?? fg.epsGrowth) * 100) : null, pg.epsGrowth),
     grossMargin: first(fmp?.grossMargin, pct(raw(f2.grossMargins)), ov.grossMargin, av.grossMargin, fh.grossMargin),
     opMargin: first(fmp?.opMargin, pct(raw(f2.operatingMargins)), ov.opMargin, av.opMargin, fh.opMargin, pg.opMargin),
     netMargin: first(fmp?.netMargin, pct(raw(f2.profitMargins)), ov.netMargin, av.netMargin, fh.netMargin, pg.netMargin),
-    roe: first(fmp?.roe, pctAny(raw(f2.returnOnEquity)), ov.roe, av.roe, fh.roe, pg.roe),
-    roa: first(fmp?.roa, pctAny(raw(f2.returnOnAssets)), ov.roa, av.roa, fh.roa, pg.roa),
-    roce: first(fmp?.roce, km.roicTTM != null ? km.roicTTM * 100 : null, fh.roce, pg.roce),
+    roe: first(fmp?.roe, pctFmp(km.returnOnEquityTTM), pctFmp(raw(f2.returnOnEquity)), ov.roe, av.roe, fh.roe, pg.roe),
+    roa: first(fmp?.roa, pctFmp(km.returnOnAssetsTTM), pctFmp(raw(f2.returnOnAssets)), ov.roa, av.roa, fh.roa, pg.roa),
+    roce: first(fmp?.roce, pctFmp(km.returnOnCapitalEmployedTTM), km.roicTTM != null ? km.roicTTM * 100 : null, fh.roce, pg.roce),
     currentRatio: r2(first(fmp?.currentRatio, raw(f2.currentRatio), ov.currentRatio, km.currentRatioTTM, fh.currentRatio, pg.currentRatio)),
     quickRatio: r2(first(fmp?.quickRatio, raw(f2.quickRatio), ov.quickRatio, fh.quickRatio, pg.quickRatio)),
     cashRatio: first(fmp?.cashRatio, km.cashRatioTTM, pg.cashRatio),
@@ -3821,7 +4440,7 @@ function buildRatioSnapshot({ summary = {}, fmp = null, quote = {}, km = {}, av 
       pg.debtToEquity
     ),
     debtToAssets: first(fmp?.debtToAssets, km.debtToAssetsTTM, pg.debtToAssets),
-    interestCoverage: first(fmp?.interestCov, pg.interestCoverage, r2(raw(f2.interestCoverage)), r2(km.interestCoverageTTM), r2(km.interestCoverageRatioTTM), fh.interestCoverage),
+    interestCoverage: first(fmp?.interestCov, r2(raw(f2.interestCoverage)), r2(km.interestCoverageTTM), r2(km.interestCoverageRatioTTM), fh.interestCoverage, pg.interestCoverage),
     assetTurnover: first(fmp?.assetTurnover, fh.assetTurnover, pg.assetTurnover),
     inventoryTurnover: first(fmp?.invTurnover, fh.inventoryTurnover),
     receivablesTurnover: first(fmp?.recTurnover, fh.receivablesTurnover),
@@ -3965,9 +4584,9 @@ async function buildQuoteData(ticker, env, opts = {}) {
   const yahooRatios = {
     pb: r2(raw(summaryStats.priceToBook)),
     ps: r2(raw(summaryDetail.priceToSalesTrailing12Months)),
-    roe: pctAny(raw(summaryFinancials.returnOnEquity)),
-    roa: pctAny(raw(summaryFinancials.returnOnAssets)),
-    netMargin: pct(raw(summaryFinancials.profitMargins)),
+    roe: pctFmp(raw(summaryFinancials.returnOnEquity)),
+    roa: pctFmp(raw(summaryFinancials.returnOnAssets)),
+    netMargin: pctFmp(raw(summaryFinancials.profitMargins)),
     debtToEquity: summaryFinancials.debtToEquity?.raw != null ? r2(summaryFinancials.debtToEquity.raw / 100) : null,
   }
   let yahooSharesOutstanding = positiveOrNull(q.sharesOutstanding)
@@ -4101,8 +4720,11 @@ async function dbSaveQuoteData(env, ticker, quoteData) {
   const updatedAt = quoteData.updatedAt || new Date().toISOString()
   await dbRun(env, `INSERT INTO stock_data (
       ticker, overview, ratios, name, exchange, sector, industry, price, change_pct, mkt_cap,
-      pe, pb, ps, roe, roa, roce, net_margin, debt_to_equity, dividend_yield, quote_updated_at, updated_at, created_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pe, pb, ps, roe, roa, roce, net_margin, debt_to_equity, dividend_yield,
+      peg, ev_ebitda, fcf_yield, rev_growth, eps_growth, ma_50, ma_200,
+      volume, avg_volume, year_high, year_low, beta, gross_margin, op_margin, current_ratio, country,
+      quote_updated_at, updated_at, created_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(ticker) DO UPDATE SET
       overview=excluded.overview,
       ratios=COALESCE(excluded.ratios, stock_data.ratios),
@@ -4122,10 +4744,29 @@ async function dbSaveQuoteData(env, ticker, quoteData) {
       net_margin=COALESCE(excluded.net_margin, stock_data.net_margin),
       debt_to_equity=COALESCE(excluded.debt_to_equity, stock_data.debt_to_equity),
       dividend_yield=COALESCE(excluded.dividend_yield, stock_data.dividend_yield),
+      peg=COALESCE(excluded.peg, stock_data.peg),
+      ev_ebitda=COALESCE(excluded.ev_ebitda, stock_data.ev_ebitda),
+      fcf_yield=COALESCE(excluded.fcf_yield, stock_data.fcf_yield),
+      rev_growth=COALESCE(excluded.rev_growth, stock_data.rev_growth),
+      eps_growth=COALESCE(excluded.eps_growth, stock_data.eps_growth),
+      ma_50=COALESCE(excluded.ma_50, stock_data.ma_50),
+      ma_200=COALESCE(excluded.ma_200, stock_data.ma_200),
+      volume=COALESCE(excluded.volume, stock_data.volume),
+      avg_volume=COALESCE(excluded.avg_volume, stock_data.avg_volume),
+      year_high=COALESCE(excluded.year_high, stock_data.year_high),
+      year_low=COALESCE(excluded.year_low, stock_data.year_low),
+      beta=COALESCE(excluded.beta, stock_data.beta),
+      gross_margin=COALESCE(excluded.gross_margin, stock_data.gross_margin),
+      op_margin=COALESCE(excluded.op_margin, stock_data.op_margin),
+      current_ratio=COALESCE(excluded.current_ratio, stock_data.current_ratio),
+      country=COALESCE(excluded.country, stock_data.country),
       quote_updated_at=excluded.quote_updated_at,
       updated_at=excluded.updated_at`, [
     ticker, toJson(overview), Object.keys(mergedRatios).length ? toJson(mergedRatios) : null, f.name, f.exchange, f.sector, f.industry, f.price, f.change_pct, f.mkt_cap,
-    f.pe, f.pb, f.ps, f.roe, f.roa, f.roce, f.net_margin, f.debt_to_equity, f.dividend_yield, updatedAt, updatedAt, updatedAt
+    f.pe, f.pb, f.ps, f.roe, f.roa, f.roce, f.net_margin, f.debt_to_equity, f.dividend_yield,
+    f.peg, f.ev_ebitda, f.fcf_yield, f.rev_growth, f.eps_growth, f.ma_50, f.ma_200,
+    f.volume, f.avg_volume, f.year_high, f.year_low, f.beta, f.gross_margin, f.op_margin, f.current_ratio, f.country,
+    updatedAt, updatedAt, updatedAt
   ])
   return true
 }
@@ -4177,6 +4818,7 @@ async function dbSaveStockSection(env, ticker, section, data) {
   if (section === 'ratios') {
     const mergedRatios = mergeDefined(existingRatios, data)
     const overview = hydrateOverviewFromRow(row, existingOverview, mergedRatios, existingFinancials)
+    applyRatioConsistencyGuards(mergedRatios, existingFinancials, overview)
     const f = screenerFields(ticker, { overview, ratios: mergedRatios, financials: existingFinancials })
     await dbRun(env, `INSERT INTO stock_data (
         ticker, ratios, pe, pb, ps, roe, roa, roce, net_margin, debt_to_equity, dividend_yield, updated_at, created_at
@@ -4666,8 +5308,10 @@ async function refreshQuotes(env, limit = 50, opts = {}) {
         d.ticker IS NULL
         OR ((d.price IS NULL OR d.price <= 0 OR d.mkt_cap IS NULL OR d.mkt_cap <= 0)
           AND (d.updated_at IS NULL OR datetime(d.updated_at) < datetime('now', '-' || ? || ' hours')))
-        OR (d.price > 0 AND d.mkt_cap > 0
-          AND (d.quote_updated_at IS NULL OR datetime(d.quote_updated_at) < datetime('now', '-' || ? || ' days')))
+        OR (d.price > 0 AND d.mkt_cap > 0 AND (top.ticker IS NOT NULL OR bootstrap.ticker IS NOT NULL)
+          AND (d.quote_updated_at IS NULL OR datetime(d.quote_updated_at) < datetime('now', '-' || ? || ' minutes')))
+        OR (d.price > 0 AND d.mkt_cap > 0 AND top.ticker IS NULL AND bootstrap.ticker IS NULL
+          AND (d.quote_updated_at IS NULL OR datetime(d.quote_updated_at) < datetime('now', '-' || ? || ' minutes')))
       )
     ORDER BY
       CASE WHEN d.ticker IS NULL THEN 0 ELSE 1 END,
@@ -4677,7 +5321,7 @@ async function refreshQuotes(env, limit = 50, opts = {}) {
       COALESCE(bootstrap.rank, 999999),
       COALESCE(d.updated_at, d.quote_updated_at, '1900-01-01') ASC,
       u.ticker ASC
-    LIMIT ?`, [QUOTE_MISSING_RETRY_HOURS, QUOTE_STALE_DAYS, candidateLimit])
+    LIMIT ?`, [QUOTE_MISSING_RETRY_HOURS, QUOTE_TOP_STALE_MINUTES, QUOTE_STALE_REST_MINUTES, candidateLimit])
   const bootstrapRanks = new Map(ALL_TICKERS.slice(0, TOP_PRIORITY_COUNT).map((ticker, index) => [ticker, index]))
   const sortedRows = [...rows].sort((a, b) => {
     const aMissingRow = Number(a.missing_row || 0)
@@ -4760,7 +5404,7 @@ async function refreshQuotes(env, limit = 50, opts = {}) {
     LEFT JOIN stock_data d ON d.ticker=u.ticker
     WHERE u.is_active=1
       AND ${COMMON_STOCK_PRIORITY_SQL}
-      AND (d.quote_updated_at IS NULL OR datetime(d.quote_updated_at) < datetime('now', '-' || ? || ' days'))`, [QUOTE_STALE_DAYS]).catch(() => null)
+      AND (d.quote_updated_at IS NULL OR datetime(d.quote_updated_at) < datetime('now', '-' || ? || ' hours'))`, [QUOTE_STALE_HOURS]).catch(() => null)
   const remainingMissingQuoteCoolingDown = await dbFirst(env, `SELECT COUNT(*) AS count
     FROM stock_universe u
     LEFT JOIN stock_data d ON d.ticker=u.ticker
@@ -5178,6 +5822,100 @@ async function refreshTopStocks(env, limit = 100, opts = {}) {
   }
 }
 
+// Backfill missing/short company descriptions from FMP /stable/profile.
+// Patches ONLY overview.description (and the KV overview cache); leaves all
+// other fields untouched. Safe to run repeatedly and on a schedule.
+async function backfillDescriptions(env, limit = 100, minWords = 100) {
+  if (!(await ensureDB(env))) return { error: 'D1 not bound' }
+  // Rows whose overview is present but description is missing/empty/'—'.
+  // json_extract returns NULL when the key is absent.
+  const rows = await dbAll(env, `
+    SELECT ticker, overview FROM stock_data
+    WHERE overview IS NOT NULL AND overview NOT IN ('', '{}', 'null')
+      AND (
+        json_extract(overview, '$.description') IS NULL
+        OR TRIM(json_extract(overview, '$.description')) IN ('', '—')
+        OR LENGTH(json_extract(overview, '$.description')) - LENGTH(REPLACE(TRIM(json_extract(overview, '$.description')), ' ', '')) + 1 < ?
+      )
+    ORDER BY mkt_cap DESC
+    LIMIT ?
+  `, [minWords, limit]).catch(() => [])
+  let filled = 0, skipped = 0, failed = 0
+  const updated = []
+  for (const row of rows) {
+    const t = row.ticker
+    let overview
+    try { overview = JSON.parse(row.overview) } catch { failed++; continue }
+    const profile = await fmpProfile(t, env).catch(() => null)
+    const desc = profile && typeof profile.description === 'string' ? profile.description.trim() : ''
+    if (!desc) {
+      // No FMP description — write a generated fallback so this row leaves the
+      // backlog queue instead of blocking it forever (ORDER BY mkt_cap DESC LIMIT n
+      // would otherwise re-scan the same unfillable rows every run).
+      if (!overview.description || String(overview.description).trim() in { '': 1, '—': 1 }) {
+        const sec = overview.sector || '', ind = overview.industry || ''
+        overview.description = sec && ind && sec !== ind
+          ? `${t} is a publicly listed ${ind} company in the ${sec} sector, traded on US stock exchanges.`
+          : sec
+            ? `${t} is a publicly listed company in the ${sec} sector, traded on US stock exchanges.`
+            : `${t} is a publicly listed company traded on US stock exchanges.`
+        overview._descSource = 'generated'
+        try {
+          await dbRun(env, `UPDATE stock_data SET overview = ? WHERE ticker = ?`, [JSON.stringify(overview), t])
+        } catch {}
+      }
+      skipped++; continue
+    }
+    overview.description = desc
+    overview._descSource = 'fmp'
+    // Same profile call carries the rest of the company facts — persist them all
+    // so the About section, Company Info card, and JSON-LD have real data.
+    const p = profile
+    if ((!overview.name || overview.name === t) && p.companyName) overview.name = p.companyName
+    if (!overview.sector && p.sector) overview.sector = p.sector
+    if (!overview.industry && p.industry) overview.industry = p.industry
+    if (!overview.website && p.website) overview.website = p.website
+    if (!overview.ceo && p.ceo) overview.ceo = p.ceo
+    if (!overview.image && p.image) overview.image = p.image
+    if (!overview.ipoDate && p.ipoDate) overview.ipoDate = p.ipoDate
+    if (overview.employees == null && p.fullTimeEmployees) overview.employees = Number(p.fullTimeEmployees) || null
+    if (!overview.city && p.city) overview.city = p.city
+    if (!overview.country && p.country) overview.country = p.country
+    if (overview.avgVolume == null && (p.averageVolume ?? p.volAvg) != null) overview.avgVolume = p.averageVolume ?? p.volAvg
+    if (overview.beta == null && p.beta != null) overview.beta = p.beta
+    if (p.range) {
+      const parts = String(p.range).split('-')
+      if (overview.high52 == null) overview.high52 = numberOrNull(parts[1])
+      if (overview.low52 == null) overview.low52 = numberOrNull(parts[0])
+    }
+    if (!Array.isArray(overview.keyPoints) || !overview.keyPoints.length) {
+      overview.keyPoints = [
+        overview.sector ? `Sector: ${overview.sector}${overview.industry ? ' — ' + overview.industry : ''}` : null,
+        overview.employees ? `Employees: ${Number(overview.employees).toLocaleString()}` : null,
+        overview.country ? `HQ: ${overview.city ? overview.city + ', ' : ''}${overview.country}` : null,
+        overview.sharesOutstanding ? `Shares Outstanding: ${(overview.sharesOutstanding / 1e9).toFixed(2)}B` : null,
+      ].filter(Boolean)
+    }
+    try {
+      await dbRun(env, `UPDATE stock_data SET overview = ? WHERE ticker = ?`, [JSON.stringify(overview), t])
+      await kvSet(`stock:${t}:overview`, overview, env, 86400 * 2).catch(() => {})
+      filled++
+      updated.push({ ticker: t, words: desc.split(/\s+/).length })
+    } catch { failed++ }
+  }
+  return {
+    ok: true,
+    scanned: rows.length,
+    filled,
+    skipped_no_fmp_desc: skipped,
+    failed,
+    minWords,
+    limit,
+    sample: updated.slice(0, 10),
+    note: 'Patches overview.description only. Re-run until scanned=0 to clear the backlog.'
+  }
+}
+
 async function refreshOneTicker(env, ticker) {
   if (!(await ensureDB(env))) return { error: 'D1 not bound' }
   const t = cleanTicker(ticker)
@@ -5208,6 +5946,144 @@ async function refreshOneTicker(env, ticker) {
     cashflowYears: data.financials?.cashflow?.headers?.length || 0,
     note: 'This endpoint force-rebuilds and overwrites one ticker in D1, including overview, ratios, financials, and caches.'
   }
+}
+
+// ---------------------------------------------------------------------------
+// Alerts: evaluation engine + email delivery
+// ---------------------------------------------------------------------------
+const ALERT_REARM_HOURS = 12  // don't re-fire the same alert within this window
+
+async function sendAlertEmail(env, toEmail, subject, htmlBody) {
+  const key = (env.RESEND_API_KEY || '').trim()
+  const from = (env.ALERT_FROM_EMAIL || 'alerts@deltascreener.com').trim()
+  if (!key) return { ok: false, skipped: 'no_email_provider' }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `DeltaScreener <${from}>`, to: [toEmail], subject, html: htmlBody }),
+    })
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      return { ok: false, error: `resend_${res.status}`, detail: detail.slice(0, 300) }
+    }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e?.message || String(e) } }
+}
+
+function alertEmailHtml(userName, triggered) {
+  const rows = triggered.map(t => `<tr>
+    <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600">${t.ticker || '—'}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #eee">${t.message}</td>
+  </tr>`).join('')
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto">
+    <h2 style="color:#2962ff;margin:0 0 4px">DeltaScreener Alerts</h2>
+    <p style="color:#555;margin:0 0 16px">Hi ${userName || 'there'}, ${triggered.length} of your alert${triggered.length > 1 ? 's' : ''} triggered.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
+    <p style="color:#888;font-size:12px;margin-top:20px">Manage your alerts at <a href="https://deltascreener.com">deltascreener.com</a></p>
+  </div>`
+}
+
+function alertMetricValue(stock, metric) {
+  const sf = screenerFields(stock?.overview?.ticker || '', stock)
+  const map = {
+    price: sf.price, changePct: sf.change_pct, pe: sf.pe, pb: sf.pb, ps: sf.ps,
+    roe: sf.roe, roce: sf.roce, roa: sf.roa, netMargin: sf.net_margin,
+    debtToEquity: sf.debt_to_equity, dividendYield: sf.dividend_yield, marketCap: sf.mkt_cap,
+    eps: finiteOrNull(stock?.overview?.eps), peg: finiteOrNull(stock?.overview?.peg),
+    opm: finiteOrNull(stock?.ratios?.opm ?? stock?.overview?.opm),
+    evEbitda: finiteOrNull(stock?.overview?.evEbitda),
+  }
+  return map[metric] ?? null
+}
+
+function thresholdCrossed(value, operator, threshold) {
+  if (value == null || !isFinite(value)) return false
+  return operator === 'below' ? value < threshold : value > threshold
+}
+
+async function evaluateAlerts(env, opts = {}) {
+  if (!(await ensureDB(env))) return { skipped: 'no_db' }
+  await ensureUserDataSchema(env)
+  const alerts = await dbAll(env, `SELECT * FROM alerts WHERE status='active'`).catch(() => [])
+  if (!alerts.length) return { evaluated: 0, triggered: 0 }
+  const nowMs = Date.now()
+  const rearmMs = ALERT_REARM_HOURS * 3600 * 1000
+  // Group triggered events per user for batched emails
+  const triggeredByUser = new Map()
+  let triggeredCount = 0
+  // Cache stock reads within this run
+  const stockCache = new Map()
+  const getStock = async t => {
+    if (stockCache.has(t)) return stockCache.get(t)
+    const s = await dbGetStockData(env, t).catch(() => null)
+    stockCache.set(t, s); return s
+  }
+
+  for (const a of alerts) {
+    if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
+    const lastMs = a.last_triggered_at ? Date.parse(a.last_triggered_at) : 0
+    if (lastMs && (nowMs - lastMs) < rearmMs) continue  // debounce
+    let fired = false, message = '', value = null, ticker = a.ticker, meta = null
+
+    if (a.type === 'price' || a.type === 'pct' || a.type === 'fundamental') {
+      const stock = await getStock(a.ticker)
+      if (!stock) continue
+      const metric = a.metric || (a.type === 'price' ? 'price' : a.type === 'pct' ? 'changePct' : a.metric)
+      value = alertMetricValue(stock, metric)
+      if (thresholdCrossed(value, a.operator, a.threshold)) {
+        fired = true
+        const op = a.operator === 'below' ? 'dropped below' : 'rose above'
+        const unit = a.type === 'pct' ? '%' : ''
+        const disp = a.type === 'price' ? `$${value}` : `${value}${unit}`
+        message = `${metric === 'price' ? 'Price' : metric} ${op} ${a.type === 'price' ? '$' : ''}${a.threshold}${unit} (now ${disp})`
+      }
+    } else if (a.type === 'screen') {
+      const screen = await dbGet(env, 'SELECT * FROM saved_screens WHERE id=? AND user_id=?', [a.screen_id, a.user_id]).catch(() => null)
+      if (!screen) continue
+      const matched = await runSavedScreenQuery(env, screen.query).catch(() => null)
+      if (!matched) continue
+      const currentSet = new Set(matched.map(m => m.ticker))
+      let prevSet = new Set()
+      try { prevSet = new Set(JSON.parse(a.last_meta || '[]')) } catch (_) {}
+      const entered = [...currentSet].filter(t => !prevSet.has(t))
+      const exited = [...prevSet].filter(t => !currentSet.has(t))
+      meta = JSON.stringify([...currentSet])
+      if (a.last_meta != null && (entered.length || exited.length)) {
+        fired = true
+        const parts = []
+        if (entered.length) parts.push(`${entered.length} entered (${entered.slice(0, 5).join(', ')})`)
+        if (exited.length) parts.push(`${exited.length} exited (${exited.slice(0, 5).join(', ')})`)
+        message = `"${screen.name}": ${parts.join('; ')}`
+        ticker = null
+      }
+      // Always update the membership snapshot (even first run / no change)
+      await dbRun(env, 'UPDATE alerts SET last_meta=? WHERE id=?', [meta, a.id]).catch(() => {})
+    }
+
+    if (fired) {
+      triggeredCount++
+      await dbRun(env, `UPDATE alerts SET last_triggered_at=datetime('now'), last_value=? WHERE id=?`, [value, a.id]).catch(() => {})
+      await dbRun(env, `INSERT INTO alert_events (alert_id,user_id,ticker,message,value) VALUES (?,?,?,?,?)`,
+        [a.id, a.user_id, ticker, message, value]).catch(() => {})
+      if (!triggeredByUser.has(a.user_id)) triggeredByUser.set(a.user_id, [])
+      triggeredByUser.get(a.user_id).push({ ticker, message })
+    }
+  }
+
+  // Send batched emails per user
+  let emailsSent = 0
+  for (const [userId, items] of triggeredByUser) {
+    const u = await dbGet(env, 'SELECT email, name FROM users WHERE id=?', [userId]).catch(() => null)
+    if (!u?.email) continue
+    const subject = items.length === 1 ? `Alert: ${items[0].message}` : `${items.length} DeltaScreener alerts triggered`
+    const r = await sendAlertEmail(env, u.email, subject, alertEmailHtml(u.name, items))
+    if (r.ok) {
+      emailsSent++
+      await dbRun(env, `UPDATE alert_events SET emailed=1 WHERE user_id=? AND emailed=0`, [userId]).catch(() => {})
+    }
+  }
+  return { evaluated: alerts.length, triggered: triggeredCount, emailsSent }
 }
 
 async function runScheduledMaintenance(env) {
@@ -5353,6 +6229,35 @@ async function runScheduledMaintenance(env) {
       if (result?.skipped || result?.stoppedByDeadline || selected <= 0 || remaining <= 0 || selected < state.limit) state.done = true
       return true
     }
+    // HEAD SLOT: the quote/top/rest rounds always exhaust the cron budget, so the
+    // backfill stages after them never ran (skipped:no_time forever). Give one
+    // backfill a small guaranteed slot BEFORE the rounds, alternating by minute:
+    // even minutes → description backfill, odd minutes → FMP-fields backfill.
+    let descriptionBackfill = { skipped: 'no_time' }
+    let fmpFieldsBackfill = { skipped: 'no_time' }
+    try {
+      if (hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+        if (new Date().getMinutes() % 2 === 0) {
+          const res = await backfillDescriptions(env, 30, 40).catch(e => ({ error: e?.message || String(e) }))
+          descriptionBackfill = res?.error
+            ? { error: res.error }
+            : { filled: Number(res?.filled || 0), scanned: Number(res?.scanned || 0), runs: 1, cleared: Number(res?.scanned || 0) === 0, minWords: 40, slot: 'head' }
+        } else {
+          const cursorMeta = await dbMetaGet(env, 'fmp_fields_backfill_cursor').catch(() => null)
+          let offset = Number(cursorMeta?.offset || 0)
+          const res = await patchFmpFields(env, 60, offset).catch(e => ({ error: e?.message || String(e) }))
+          if (res?.error) fmpFieldsBackfill = { error: res.error, offset }
+          else {
+            const exhausted = Number(res?.total || 0) < 60
+            offset = exhausted ? 0 : Number(res?.offset_next || (offset + 60))
+            await dbMetaSet(env, 'fmp_fields_backfill_cursor', { offset, updatedAt: new Date().toISOString() }).catch(() => {})
+            fmpFieldsBackfill = { patched: Number(res?.patched || 0), runs: 1, nextOffset: offset, exhausted, slot: 'head' }
+          }
+        }
+      }
+    } catch (e) {
+      descriptionBackfill = { error: e?.message || String(e) }
+    }
     const roundLimit = Math.max(SCHEDULED_QUOTE_MAX_BATCHES, SCHEDULED_TOP_MAX_BATCHES, SCHEDULED_REST_MAX_BATCHES)
     for (let round = 0; round < roundLimit && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS); round++) {
       let ranSomething = false
@@ -5360,6 +6265,70 @@ async function runScheduledMaintenance(env) {
       ranSomething = (await runStageOnce('top', round)) || ranSomething
       ranSomething = (await runStageOnce('rest', round)) || ranSomething
       if (!ranSomething) break
+    }
+    // Dedicated FMP-fields backfill: walk the universe filling high52/low52/avgVolume/
+    // beta/sharesOutstanding into the stored overview so page views read these from D1
+    // and never fire a live FMP profile fetch. Cursor persisted in app_meta; resets to
+    // the start once a full pass finds nothing left to patch.
+    try {
+      if (fmpFieldsBackfill.slot !== 'head' && !fmpFieldsBackfill.error && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+        const cursorMeta = await dbMetaGet(env, 'fmp_fields_backfill_cursor').catch(() => null)
+        let offset = Number(cursorMeta?.offset || 0)
+        const BACKFILL_LIMIT = 150
+        const MAX_BACKFILL_RUNS = 4
+        let totalPatched = 0, runs = 0, exhausted = false
+        for (let r = 0; r < MAX_BACKFILL_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS); r++) {
+          const res = await patchFmpFields(env, BACKFILL_LIMIT, offset).catch(e => ({ error: e?.message || String(e) }))
+          runs++
+          if (res?.error) { fmpFieldsBackfill = { error: res.error, offset }; break }
+          totalPatched += Number(res?.patched || 0)
+          if (Number(res?.total || 0) < BACKFILL_LIMIT) {
+            // reached end of universe — wrap cursor back to 0 for the next pass
+            offset = 0
+            exhausted = true
+            break
+          }
+          offset = Number(res?.offset_next || (offset + BACKFILL_LIMIT))
+        }
+        await dbMetaSet(env, 'fmp_fields_backfill_cursor', { offset, updatedAt: new Date().toISOString() }).catch(() => {})
+        fmpFieldsBackfill = { patched: totalPatched, runs, nextOffset: offset, exhausted }
+      }
+    } catch (e) {
+      fmpFieldsBackfill = { error: e?.message || String(e) }
+    }
+    // Description backfill: fill missing/thin overview.description from FMP profile and
+    // persist into D1 so every ticker keeps its best-available text. Small per-run limit
+    // so it never spikes the FMP budget; re-runs each cron tick until the backlog clears.
+    try {
+      if (descriptionBackfill.slot !== 'head' && !descriptionBackfill.error && !descriptionBackfill.cleared && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+        const DESC_LIMIT = 40
+        const DESC_MIN_WORDS = 40
+        const MAX_DESC_RUNS = 3
+        let totalFilled = 0, totalScanned = 0, runs = 0, cleared = false
+        for (let r = 0; r < MAX_DESC_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS); r++) {
+          const res = await backfillDescriptions(env, DESC_LIMIT, DESC_MIN_WORDS).catch(e => ({ error: e?.message || String(e) }))
+          runs++
+          if (res?.error) { descriptionBackfill = { error: res.error }; break }
+          totalFilled += Number(res?.filled || 0)
+          totalScanned += Number(res?.scanned || 0)
+          if (Number(res?.scanned || 0) === 0) { cleared = true; break }
+        }
+        if (!descriptionBackfill.error) {
+          descriptionBackfill = { filled: totalFilled, scanned: totalScanned, runs, cleared, minWords: DESC_MIN_WORDS }
+        }
+      }
+    } catch (e) {
+      descriptionBackfill = { error: e?.message || String(e) }
+    }
+    // Alert evaluation: after fresh quotes/fundamentals are in D1, evaluate active
+    // user alerts (price/pct/fundamental/screen), debounce, log events, batch emails.
+    let alertsResult = { skipped: 'no_time' }
+    try {
+      if (hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+        alertsResult = await evaluateAlerts(env, { deadlineMs: deadlineMs - SCHEDULED_FINALIZE_BUFFER_MS }).catch(e => ({ error: e?.message || String(e) }))
+      }
+    } catch (e) {
+      alertsResult = { error: e?.message || String(e) }
     }
     const quotes = aggregateRefreshResults(stageState.quotes.results) || { ok: true, selected: 0, processed: 0, skipped: 'quote_batch_no_work' }
     const top = aggregateRefreshResults(stageState.top.results) || { ok: true, selected: 0, processed: 0, skipped: 'top_batch_no_work' }
@@ -5383,6 +6352,9 @@ async function runScheduledMaintenance(env) {
       quotes: summarizeRefreshResult(quotes),
       top: summarizeRefreshResult(top),
       rest: summarizeRefreshResult(rest),
+      fmpFieldsBackfill,
+      descriptionBackfill,
+      alerts: alertsResult,
       apiStats: apiStatsSnapshot(env),
     }
     await dbMetaSet(env, 'last_scheduled_maintenance', meta).catch(() => {})
@@ -5391,6 +6363,9 @@ async function runScheduledMaintenance(env) {
       quotes,
       top,
       rest,
+      fmpFieldsBackfill,
+      descriptionBackfill,
+      alerts: alertsResult,
       apiStats: apiStatsSnapshot(env),
       coverage: {
         before: coverageBefore,
@@ -5527,10 +6502,144 @@ function aggregateRefreshResults(results = []) {
 // ──────────────────────────────────────────────────────────────────────────
 // Data getters with caching
 // ──────────────────────────────────────────────────────────────────────────
+// Batch-patches stored overview records with FMP fields missing from older cached data
+// (high52, low52, avgVolume, beta, sharesOutstanding)
+async function patchFmpFields(env, limit = 200, offset = 0) {
+  if (!fmpKey(env)) return { error: 'FMP_KEY not set' }
+  // Fetch tickers whose stored overview is missing high52 or avgVolume
+  const rows = await dbAll(env,
+    `SELECT ticker, overview FROM stock_data
+     WHERE overview IS NOT NULL AND price IS NOT NULL
+     ORDER BY mkt_cap DESC NULLS LAST
+     LIMIT ${limit} OFFSET ${offset}`
+  ).catch(() => [])
+  if (!rows.length) return { patched: 0, skipped: 0, total: 0 }
+
+  let patched = 0, skipped = 0, errors = 0
+  const needs = rows.filter(row => {
+    try {
+      const ov = JSON.parse(row.overview)
+      return ov.high52 == null || ov.avgVolume == null || ov.beta == null
+    } catch { return false }
+  })
+
+  // Process in batches of 10 to stay within subrequest limits
+  const BATCH = 10
+  for (let i = 0; i < needs.length; i += BATCH) {
+    const batch = needs.slice(i, i + BATCH)
+    await Promise.all(batch.map(async row => {
+      try {
+        const fp = await fmpProfile(row.ticker, env)
+        if (!fp) { skipped++; return }
+        let ov
+        try { ov = JSON.parse(row.overview) } catch { skipped++; return }
+        let changed = false
+        if (fp.range) {
+          const parts = String(fp.range).split('-')
+          if (ov.high52 == null) { ov.high52 = numberOrNull(parts[1]); changed = true }
+          if (ov.low52  == null) { ov.low52  = numberOrNull(parts[0]); changed = true }
+        }
+        if (ov.avgVolume == null && (fp.averageVolume ?? fp.volAvg) != null) {
+          ov.avgVolume = fp.averageVolume ?? fp.volAvg; changed = true
+        }
+        if (ov.beta == null && fp.beta != null) { ov.beta = fp.beta; changed = true }
+        if (ov.sharesOutstanding == null && fp.sharesOutstanding != null) {
+          ov.sharesOutstanding = fp.sharesOutstanding; changed = true
+        }
+        if (changed) {
+          await dbRun(env,
+            `UPDATE stock_data SET overview=? WHERE ticker=?`,
+            [JSON.stringify(ov), row.ticker]
+          )
+          patched++
+        } else {
+          skipped++
+        }
+      } catch { errors++ }
+    }))
+  }
+  return {
+    patched,
+    skipped,
+    errors,
+    total: rows.length,
+    needs_patch: needs.length,
+    offset_next: offset + limit,
+    message: `Patched ${patched} records. Run again with offset=${offset + limit} for next batch.`
+  }
+}
+
+// Batch-patches stocks where name = ticker with real company name from FMP
+async function patchStockNames(env, limit = 100, offset = 0) {
+  if (!fmpKey(env)) return { error: 'FMP_KEY not set' }
+  const rows = await dbAll(env,
+    `SELECT ticker, name, overview FROM stock_data
+     WHERE name = ticker AND price IS NOT NULL
+     ORDER BY mkt_cap DESC NULLS LAST
+     LIMIT ${limit} OFFSET ${offset}`
+  ).catch(() => [])
+  if (!rows.length) return { patched: 0, total: 0, message: 'No more stocks to patch' }
+
+  let patched = 0, skipped = 0, errors = 0
+  const BATCH = 10
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH)
+    await Promise.all(batch.map(async row => {
+      try {
+        const fp = await fmpProfile(row.ticker, env)
+        if (!fp?.companyName || fp.companyName === row.ticker) { skipped++; return }
+        // Update the name column
+        await dbRun(env, `UPDATE stock_data SET name=? WHERE ticker=?`, [fp.companyName, row.ticker])
+        // Also update the overview JSON blob name field
+        if (row.overview) {
+          try {
+            const ov = JSON.parse(row.overview)
+            ov.name = fp.companyName
+            if (fp.description && (!ov.description || ov.description.length < 50)) ov.description = fp.description
+            await dbRun(env, `UPDATE stock_data SET overview=? WHERE ticker=?`, [JSON.stringify(ov), row.ticker])
+          } catch (_) {}
+        }
+        patched++
+      } catch { errors++ }
+    }))
+  }
+  return {
+    patched, skipped, errors,
+    total: rows.length,
+    offset_next: offset + limit,
+    message: `Patched ${patched} names. Run with offset=${offset + limit} for next batch.`
+  }
+}
+
 async function getOverview(ticker, env, opts = {}) {
   const allowLive = opts.allowLive === true
   const fromDb = await dbGetStockSection(env, ticker, 'overview')
-  if (fromDb) return fromDb
+  if (fromDb) {
+    // IMPORTANT: do NOT fetch a live FMP profile on a normal page-view read.
+    // ~98% of stored records are missing high52/avgVolume/beta, so this enrich
+    // path used to fire an FMP subrequest on nearly every stock view, exhausting
+    // the Cloudflare daily request budget (HTTP 429 / error 1027). The enrichment
+    // now only runs on an explicit deep refresh (allowLive), and the persisted
+    // result is written back so it's a one-time cost per ticker.
+    if (allowLive && (fromDb.high52 == null || fromDb.avgVolume == null || fromDb.beta == null)) {
+      try {
+        const fp = await fmpProfile(ticker, env)
+        if (fp) {
+          if (fp.range) {
+            const parts = String(fp.range).split('-')
+            fromDb.high52 = fromDb.high52 ?? numberOrNull(parts[1])
+            fromDb.low52  = fromDb.low52  ?? numberOrNull(parts[0])
+          }
+          fromDb.avgVolume = fromDb.avgVolume ?? (fp.averageVolume ?? fp.volAvg ?? null)
+          fromDb.beta = fromDb.beta ?? (fp.beta ?? null)
+          fromDb.sharesOutstanding = fromDb.sharesOutstanding ?? positiveOrNull(fp.sharesOutstanding) ?? null
+          // Persist the enriched record so the gap is closed permanently.
+          await dbSaveStockSection(env, ticker, 'overview', fromDb).catch(() => {})
+        }
+      } catch (_) {}
+    }
+    return fromDb
+  }
   if (!allowLive) return { error: 'Overview unavailable in DB', ticker }
   const cached = await kvGet(`stock:${ticker}:overview`, env)
   if (cached) {
@@ -5560,36 +6669,38 @@ async function getFinancials(ticker, env, opts = {}) {
 async function getRatios(ticker, env, opts = {}) {
   const allowLive = opts.allowLive === true
   const fromDb = await dbGetStockSection(env, ticker, 'ratios')
-  if (fromDb && hasStockPageRatioCoverage(fromDb)) return fromDb
+  if (fromDb && hasStockPageRatioCoverage(fromDb)) return applyRatioConsistencyGuards(fromDb)
   const cached = await kvGet(`stock:${ticker}:ratios`, env)
   if (hasUsefulRatios(cached) && hasStockPageRatioCoverage(cached)) {
     await dbSaveStockSection(env, ticker, 'ratios', cached).catch(() => {})
-    return cached
+    return applyRatioConsistencyGuards(cached)
   }
   const partial = (fromDb || cached) ? mergeDefined(fromDb || {}, cached || {}) : null
   if (!allowLive) {
-    if (partial) return partial
+    if (partial) return applyRatioConsistencyGuards(partial)
     return { error: 'Ratios unavailable in DB', ticker }
   }
   const data = await getOrBuildStockData(ticker, env, true)
-  return data.ratios || partial || { error: 'Ratios unavailable' }
+  return applyRatioConsistencyGuards(data.ratios || partial) || { error: 'Ratios unavailable' }
 }
 async function getShareholders(ticker, env, opts = {}) {
   const allowLive = opts.allowLive === true
   const fromDb = await dbGetStockSection(env, ticker, 'shareholders')
-  if (fromDb?.institutional?.length || fromDb?.ownership?.length) return fromDb
+  if (fromDb?.institutional?.length || fromDb?.ownership?.length || fromDb?.history?.length || fromDb?.secShares?.length) return fromDb
   if (!allowLive) return fromDb || { institutional: [], insiders: [], ownership: [], source: 'db_unavailable' }
   const cacheKey = `stock:${ticker}:shareholders`
   const cached = await kvGet(cacheKey, env)
-  if (cached?.institutional?.length || cached?.ownership?.length) {
+  if (cached?.institutional?.length || cached?.ownership?.length || cached?.history?.length || cached?.secShares?.length) {
     await dbSaveStockSection(env, ticker, 'shareholders', cached).catch(() => {})
     return cached
   }
-  const [institutional, fmpSummary, yahoo, fhInst] = await Promise.all([
+  const [institutional, fmpSummary, yahoo, fhInst, history, sec] = await Promise.all([
     fmpInstitutional(ticker, env).catch(() => []),
     fmpOwnershipSummary(ticker, env).catch(() => null),
     yahooHolders(ticker).catch(() => null),
     finnhubOwnership(ticker, env).catch(() => []),
+    fmpOwnershipHistory(ticker, env).catch(() => []),
+    secOwnershipData(ticker).catch(() => null),
   ])
   const mh = yahoo?.majorHoldersBreakdown || {}
   const ih = yahoo?.insiderHolders?.holders || []
@@ -5605,8 +6716,9 @@ async function getShareholders(ticker, env, opts = {}) {
     fmpSummary?.holders != null ? { label: 'Institutional Investors', value: fmpSummary.holders, isCount: true, source: fmpSummary.source } : null,
   ].filter(Boolean)
   const instRows = institutional.length ? institutional : (fhInst.length ? fhInst : (yInst.length ? yInst : yFund))
+  const normInst = instRows.slice(0, 25).map(normalizeHolder).filter(h => h.name || h.shares)
   const result = {
-    institutional: instRows.slice(0, 25).map(normalizeHolder).filter(h => h.name || h.shares),
+    institutional: normInst,
     insiders: ih.slice(0, 20).map(h => ({
       name: h.name,
       relation: h.relation,
@@ -5614,11 +6726,17 @@ async function getShareholders(ticker, env, opts = {}) {
       latestTransDate: h.latestTransDate?.fmt || h.latestTransDate || null,
     })),
     ownership,
-    source: [institutional.length ? 'fmp' : null, fhInst.length ? 'finnhub' : null, yInst.length || yFund.length || ownership.length || ih.length ? 'yahoo' : null, fmpSummary ? 'fmp_v4' : null].filter(Boolean).join('+') || 'unavailable',
-    counts: { fmp: institutional.length, finnhub: fhInst.length, yahooInstitutional: yInst.length, yahooFunds: yFund.length, yahooInsiders: ih.length, ownership: ownership.length },
+    history,
+    // SEC-native, FMP-free ownership signals (always populated for US tickers).
+    secShares: sec?.sharesHistory || [],
+    secActivity: sec?.filingActivity || [],
+    secFilings: sec?.filings || [],
+    secEntity: sec ? { cik: sec.cik, name: sec.entityName } : null,
+    source: [institutional.length ? 'fmp' : null, fhInst.length ? 'finnhub' : null, yInst.length || yFund.length || ownership.length || ih.length ? 'yahoo' : null, fmpSummary ? 'fmp_v4' : null, history.length ? 'fmp_hist' : null, sec ? 'sec_edgar' : null].filter(Boolean).join('+') || 'unavailable',
+    counts: { fmp: institutional.length, finnhub: fhInst.length, yahooInstitutional: yInst.length, yahooFunds: yFund.length, yahooInsiders: ih.length, ownership: ownership.length, history: history.length, secShares: sec?.sharesHistory?.length || 0, secActivity: sec?.filingActivity?.length || 0, secFilings: sec?.filings?.length || 0 },
     updatedAt: new Date().toISOString(),
   }
-  if (result.institutional.length || result.ownership.length || result.insiders.length) {
+  if (result.institutional.length || result.ownership.length || result.insiders.length || result.history.length || result.secShares.length || result.secActivity.length || result.secFilings.length) {
     await kvSet(cacheKey, result, env, 86400)
     await dbSaveStockSection(env, ticker, 'shareholders', result).catch(() => {})
   }
@@ -5731,6 +6849,35 @@ const SCREEN_FILTERS = {
   netMargin: { col: 'net_margin', scale: 1 },
   dividendYield: { col: 'dividend_yield', scale: 1 },
   debtToEquity: { col: 'debt_to_equity', scale: 1 },
+  changePct: { col: 'change_pct', scale: 1 },
+  peg: { col: 'peg', scale: 1, sparse: true },
+  evEbitda: { col: 'ev_ebitda', scale: 1 },
+  fcfYield: { col: 'fcf_yield', scale: 1 },
+  revGrowth: { col: 'rev_growth', scale: 1, sparse: true },
+  epsGrowth: { col: 'eps_growth', scale: 1, sparse: true },
+  volume: { col: 'volume', scale: 1, sparse: true },
+  avgVolume: { col: 'avg_volume', scale: 1, sparse: true },
+  yearHigh: { col: 'year_high', scale: 1, sparse: true },
+  yearLow: { col: 'year_low', scale: 1, sparse: true },
+  beta: { col: 'beta', scale: 1, sparse: true },
+  grossMargin: { col: 'gross_margin', scale: 1, sparse: true },
+  opMargin: { col: 'op_margin', scale: 1, sparse: true },
+  currentRatio: { col: 'current_ratio', scale: 1, sparse: true },
+  enterpriseValue: { col: 'enterprise_value', scale: 1, sparse: true },
+  evSales: { col: 'ev_sales', scale: 1, sparse: true },
+  pFcf: { col: 'p_fcf', scale: 1, sparse: true },
+  pOcf: { col: 'p_ocf', scale: 1, sparse: true },
+  earningsYield: { col: 'earnings_yield', scale: 1, sparse: true },
+  quickRatio: { col: 'quick_ratio', scale: 1, sparse: true },
+  interestCoverage: { col: 'interest_coverage', scale: 1, sparse: true },
+  payoutRatio: { col: 'payout_ratio', scale: 1, sparse: true },
+  bookValuePs: { col: 'book_value_ps', scale: 1, sparse: true },
+  ebitda: { col: 'ebitda', scale: 1, sparse: true },
+  freeCashFlow: { col: 'free_cash_flow', scale: 1, sparse: true },
+  operatingCashFlow: { col: 'operating_cash_flow', scale: 1, sparse: true },
+  totalDebt: { col: 'total_debt', scale: 1, sparse: true },
+  totalCash: { col: 'total_cash', scale: 1, sparse: true },
+  netDebt: { col: 'net_debt', scale: 1, sparse: true },
 }
 const SCREEN_SORTS = {
   marketCap: 'mkt_cap',
@@ -5748,6 +6895,34 @@ const SCREEN_SORTS = {
   dividendYield: 'dividend_yield',
   debtToEquity: 'debt_to_equity',
   changePct: 'change_pct',
+  peg: 'peg',
+  evEbitda: 'ev_ebitda',
+  fcfYield: 'fcf_yield',
+  revGrowth: 'rev_growth',
+  epsGrowth: 'eps_growth',
+  volume: 'volume',
+  avgVolume: 'avg_volume',
+  yearHigh: 'year_high',
+  yearLow: 'year_low',
+  beta: 'beta',
+  grossMargin: 'gross_margin',
+  opMargin: 'op_margin',
+  currentRatio: 'current_ratio',
+  enterpriseValue: 'enterprise_value',
+  evSales: 'ev_sales',
+  pFcf: 'p_fcf',
+  pOcf: 'p_ocf',
+  earningsYield: 'earnings_yield',
+  quickRatio: 'quick_ratio',
+  interestCoverage: 'interest_coverage',
+  payoutRatio: 'payout_ratio',
+  bookValuePs: 'book_value_ps',
+  ebitda: 'ebitda',
+  freeCashFlow: 'free_cash_flow',
+  operatingCashFlow: 'operating_cash_flow',
+  totalDebt: 'total_debt',
+  totalCash: 'total_cash',
+  netDebt: 'net_debt',
 }
 const SCREENER_SORT_FIELD_ALIASES = {
   marketCap: 'mktCap',
@@ -5788,13 +6963,13 @@ function buildDbWhere(filters = {}) {
     if (f.min != null && f.min !== '') {
       const v = n(f.min)
       if (v == null) continue
-      where.push(`${cfg.col} >= ?`)
+      where.push(cfg.sparse ? `(${cfg.col} >= ? OR ${cfg.col} IS NULL)` : `${cfg.col} >= ?`)
       params.push(v * cfg.scale)
     }
     if (f.max != null && f.max !== '') {
       const v = n(f.max)
       if (v == null) continue
-      where.push(`${cfg.col} <= ?`)
+      where.push(cfg.sparse ? `(${cfg.col} <= ? OR ${cfg.col} IS NULL)` : `${cfg.col} <= ?`)
       params.push(v * cfg.scale)
     }
   }
@@ -5805,6 +6980,10 @@ function buildDbWhere(filters = {}) {
   if (filters.exchange?.eq) {
     where.push(`UPPER(exchange) = UPPER(?)`)
     params.push(String(filters.exchange.eq).trim())
+  }
+  if (filters.country?.eq) {
+    where.push(`LOWER(country) = LOWER(?)`)
+    params.push(String(filters.country.eq).trim())
   }
   return { where: where.join(' AND '), params }
 }
@@ -5890,6 +7069,109 @@ function screenerRowMatchesConditions(row, conditions = []) {
     return compareScreenValue(actualNum, op, expectedNum)
   })
 }
+// PEG = PE / annualised earnings-growth %. Prefer our own multi-year growth base
+// (reliable) over FMP's priceEarningsToGrowthRatio, which is frequently garbage
+// (uses an odd TTM growth fraction). Only fall back to the FMP value when we have
+// no growth base, and reject FMP outliers outside a sane 0–10 band.
+function computePeg(pe, growthBase, fmpPeg) {
+  if (pe != null && growthBase != null && growthBase > 0) return pe / growthBase
+  const f = n(fmpPeg)
+  if (f != null && f > 0 && f <= 10) return f
+  return null
+}
+// ── Data-sanity pass ────────────────────────────────────────────────────
+// Nulls out impossible ratio values so junk data from tiny or negative-
+// equity companies never surfaces in screener results or SSR screen pages.
+// Metrics whose sanitized value should be re-checked against conditions
+// after SQL filtering (SQL sees raw DB values; this sees cleaned ones).
+const SANITIZED_METRICS = new Set(['roe', 'roa', 'roce', 'netMargin', 'grossMargin', 'opMargin', 'pe', 'dividendYield', 'pb', 'evEbitda', 'ps', 'evSales', 'fcfYield', 'peg', 'currentRatio', 'quickRatio', 'revGrowth', 'epsGrowth', 'payoutRatio', 'earningsYield'])
+function sanitizeScreenerRatios(out) {
+  const bad = (v, lim) => v != null && Math.abs(v) > lim
+  // Negative equity (D/E < 0) makes ROE meaningless — buyback-heavy or
+  // distressed companies report absurd ROE (e.g. 680%) that isn't real quality.
+  if (out.debtToEquity != null && out.debtToEquity < 0) {
+    out.roe = null
+    out.avgRoe3y = null
+    out.avgRoe5y = null
+    // Negative equity also makes P/B meaningless (PM −30.7, MCD −155, DELL −182).
+    if (out.pb != null && out.pb < 0) out.pb = null
+  }
+  // Negative or absurd P/B is never a real valuation signal.
+  if (out.pb != null && (out.pb < 0 || out.pb > 500)) out.pb = null
+  // EV/EBITDA: |x|>1000 is near-zero-EBITDA noise (CRWD 1234); a mega-cap below
+  // 0.5 is a cross-currency artifact (TSM 0.14 — TWD EBITDA vs USD price).
+  if (out.evEbitda != null && (Math.abs(out.evEbitda) > 1000 || out.evEbitda < 0)) out.evEbitda = null
+  if (out.evEbitda != null && out.evEbitda < 0.5 && out.mktCap != null && out.mktCap >= 5e10) out.evEbitda = null
+  // Sign mismatch between ROE and net income (e.g. ABBV: positive earnings but
+  // ROE −129%) means equity is negative or the periods are mixed — not real.
+  if (out.roe != null && out.profitAfterTax != null && out.profitAfterTax !== 0 && Math.sign(out.roe) !== Math.sign(out.profitAfterTax)) out.roe = null
+  if (bad(out.roe, 300)) out.roe = null
+  // Cross-currency EPS guard (ADRs like TSM: TWD EPS vs USD price). If price/eps
+  // wildly disagrees with the stored P/E, the EPS currency is wrong — re-derive it.
+  if (out.eps != null && out.eps !== 0 && out.price != null && out.pe != null && out.pe > 0) {
+    const impliedPe = out.price / out.eps
+    if (impliedPe > out.pe * 5 || (impliedPe > 0 && impliedPe < out.pe / 5)) {
+      out.eps = Math.round((out.price / out.pe) * 100) / 100
+    }
+  }
+  if (bad(out.roa, 200)) out.roa = null
+  if (bad(out.roce, 300)) out.roce = null
+  if (bad(out.netMargin, 200)) out.netMargin = null
+  if (bad(out.grossMargin, 100.5)) out.grossMargin = null
+  if (bad(out.opMargin, 200)) out.opMargin = null
+  if (out.pe != null && (out.pe <= 0 || out.pe > 2000)) out.pe = null
+  // P/E < 0.5 means the company earns 2x+ its market cap per year — a one-time
+  // gain or bad data (KYNB 0.16), never a sustained real valuation.
+  if (out.pe != null && out.pe < 0.5) { out.pe = null; out.eps = null }
+  // A $1B+ company at P/E < 0.3, or $50B+ at P/E < 2, is a cross-currency
+  // artifact (ADR USD price vs local-currency EPS, e.g. TSM, AKO.B).
+  if (out.pe != null && out.pe < 0.3 && out.mktCap != null && out.mktCap >= 1e9) {
+    out.pe = null
+    out.eps = null
+  }
+  if (out.pe != null && out.pe < 2 && out.mktCap != null && out.mktCap >= 5e10) {
+    out.pe = null
+    out.eps = null
+  }
+  if (out.dividendYield != null && (out.dividendYield < 0 || out.dividendYield > 50)) out.dividendYield = null
+  // P/S can't be negative (negative "sales" is a data error); >10000 is a
+  // zero-revenue shell where the ratio is meaningless (ENHA 125,523).
+  if (out.ps != null && (out.ps < 0 || out.ps > 10000)) out.ps = null
+  if (out.evSales != null && (out.evSales < 0 || out.evSales > 10000)) out.evSales = null
+  // FCF yield beyond ±100% of market cap is micro-cap noise (GDC −9,211,754%).
+  if (out.fcfYield != null && Math.abs(out.fcfYield) > 100) out.fcfYield = null
+  // PEG beyond ±100 is a near-zero-growth denominator artifact (APPN 2015).
+  if (out.peg != null && Math.abs(out.peg) > 100) out.peg = null
+  if (out.currentRatio != null && (out.currentRatio < 0 || out.currentRatio > 1000)) out.currentRatio = null
+  if (out.quickRatio != null && (out.quickRatio < 0 || out.quickRatio > 1000)) out.quickRatio = null
+  // Revenue can't shrink more than 100%; growth >10,000% is a near-zero base (HSCS 2,057,302%).
+  if (out.revGrowth != null && (out.revGrowth < -100 || out.revGrowth > 10000)) out.revGrowth = null
+  if (out.epsGrowth != null && Math.abs(out.epsGrowth) > 10000) out.epsGrowth = null
+  if (out.payoutRatio != null && (out.payoutRatio < 0 || out.payoutRatio > 1000)) out.payoutRatio = null
+  // Keep earnings yield consistent with the sanitized P/E (sources can disagree
+  // in period or sign, e.g. NTSK pe=637 but ey=−19). P/E is the sanitized anchor.
+  if (out.pe != null && out.pe > 0) {
+    const impliedEy = 100 / out.pe
+    if (out.earningsYield == null || out.earningsYield <= 0 || Math.abs(out.earningsYield - impliedEy) > Math.max(2, impliedEy * 0.5)) {
+      out.earningsYield = Math.round(impliedEy * 100) / 100
+    }
+  } else if (out.earningsYield != null && Math.abs(out.earningsYield) > 100) {
+    out.earningsYield = null
+  }
+  // P/FCF must be positive and consistent with FCF yield (negative FCF → both meaningless).
+  if (out.priceToFreeCashFlow != null && (out.priceToFreeCashFlow < 0 || (out.fcfYield != null && out.fcfYield <= 0) || (out.freeCashFlow != null && out.freeCashFlow <= 0))) {
+    out.priceToFreeCashFlow = null
+    if (out.pFcf != null) out.pFcf = null
+  }
+  if (out.pFcf != null && out.pFcf < 0) out.pFcf = null
+  // Banks: liquidity/turnover/EV ratios are meaningless for interest-bearing balance sheets.
+  if (/\bbank/i.test(`${out.industry || ''} ${out.sector || ''}`)) {
+    for (const k of ['currentRatio','quickRatio','cashRatio','interestCoverage','inventoryTurnover','assetTurnover','receivablesTurnover','evEbitda','evSales','grossMargin','fcfYield','priceToFreeCashFlow','pFcf','debtToEquity','debtToAssets']) {
+      if (out[k] != null) out[k] = null
+    }
+  }
+  return out
+}
 function enrichScreenerRow(row) {
   const directOverview = parseJson(row.overview)
   const directFinancials = parseJson(row.financials)
@@ -5936,16 +7218,24 @@ function enrichScreenerRow(row) {
     growth.stockCagr?.['10y']
   )
   const netMargin = nonZeroRounded(row.net_margin ?? rt.netMargin ?? ov.netMargin ?? ratioOrNull(profitAfterTax, sales, 100))
-  const roce = nonZeroRounded(row.roce ?? rt.roce ?? ratioOrNull(opProfit, (totalAssets != null && totalLiabilities != null) ? totalAssets - totalLiabilities : null, 100))
+  const roce = nonZeroRounded(row.roce ?? rt.roce ?? ratioOrNull(opProfit, (totalAssets != null && currentLiabilities != null) ? totalAssets - currentLiabilities : null, 100))
   const roa = nonZeroRounded(row.roa ?? rt.roa ?? ov.roa ?? ratioOrNull(profitAfterTax, totalAssets, 100))
-  const roe = nonZeroRounded(row.roe ?? rt.roe ?? ov.roe ?? ratioOrNull(profitAfterTax, reserves, 100))
+  const roeComputed = ratioOrNull(profitAfterTax, reserves, 100)
+  let roeStored = nonZeroRounded(row.roe ?? rt.roe ?? ov.roe ?? roeComputed)
+  // Repair fraction-vs-percent scale bugs (e.g. stored 1.07 when statements say 107%):
+  // if the statement-derived ROE is ~100x the stored value, the stored one is a raw fraction.
+  if (roeStored != null && roeStored !== 0 && roeComputed != null) {
+    const scale = roeComputed / roeStored
+    if (scale > 50 && scale < 200) roeStored = r2(roeComputed)
+  }
+  const roe = roeStored
   const ev = marketCap != null && debt != null ? r2(marketCap + (debt * 1e6) - ((lastVal(bal.cash) || 0) * 1e6)) : null
-  const enterpriseValue = rt.enterpriseValue ?? ev
+  const enterpriseValue = row.enterprise_value ?? rt.enterpriseValue ?? ev
   const ebitda = opProfit != null ? opProfit + (depreciation || 0) : null
-  const interestCoverage = r2(rt.interestCoverage ?? ratioOrNull(opProfit, interestExpense))
+  const interestCoverage = r2(row.interest_coverage ?? rt.interestCoverage ?? ratioOrNull(opProfit, interestExpense))
   const stockCagr = growth.stockCagr || {}
   const pegGrowthBase = first(profitGrowth3y, salesGrowth3y, profitGrowth5y, salesGrowth5y)
-  return {
+  const out = {
     ticker: row.ticker,
     name: row.name || ov.name || row.ticker,
     exchange: row.exchange || ov.exchange || '—',
@@ -5957,8 +7247,15 @@ function enrichScreenerRow(row) {
     mktCap: marketCap,
     marketCap,
     sales,
-    opm: lastVal(annual.opm) ?? rt.opMargin ?? ov.opMargin,
-    grossMargin: nonZeroRounded(rt.grossMargin ?? ov.grossMargin),
+    opm: nonZeroRounded(row.op_margin) ?? lastVal(annual.opm) ?? rt.opMargin ?? ov.opMargin,
+    opMargin: nonZeroRounded(row.op_margin ?? rt.opMargin ?? ov.opMargin),
+    grossMargin: nonZeroRounded(row.gross_margin ?? rt.grossMargin ?? ov.grossMargin),
+    volume: positiveOrNull(row.volume ?? ov.volume),
+    avgVolume: positiveOrNull(row.avg_volume ?? ov.avgVolume),
+    yearHigh: positiveOrNull(row.year_high ?? ov.high52),
+    yearLow: positiveOrNull(row.year_low ?? ov.low52),
+    beta: r2(row.beta ?? ov.beta),
+    country: row.country || ov.country || null,
     profitAfterTax,
     salesLatestQuarter,
     profitAfterTaxLatestQuarter,
@@ -5974,19 +7271,35 @@ function enrichScreenerRow(row) {
     roe,
     eps: r2(ov.eps ?? lastVal(annual.eps)),
     debt,
-    earningsYield: nonZeroRounded(rt.earningsYield ?? (pe ? 100 / pe : null)),
+    earningsYield: nonZeroRounded(row.earnings_yield ?? rt.earningsYield ?? (pe ? 100 / pe : null)),
     salesGrowth: rt.salesGrowth ?? growth.salesGrowth?.ttm ?? pctChange(sales, prevVal(annual.sales)) ?? rt.salesGrowth3y,
     profitGrowth: rt.profitGrowth ?? growth.profitGrowth?.ttm ?? pctChange(profitAfterTax, prevVal(annual.netProfit)) ?? rt.profitGrowth3y,
     ps: nonZeroRounded(ps),
-    priceToFreeCashFlow: rt.priceToFreeCashFlow ?? (marketCap != null && fcf ? r2(marketCap / (fcf * 1e6)) : null),
-    evEbitda: nonZeroRounded(rt.evEbitda ?? (enterpriseValue != null && ebitda ? enterpriseValue / (ebitda * 1e6) : null)),
+    priceToFreeCashFlow: nonZeroRounded(row.p_fcf ?? rt.priceToFreeCashFlow ?? (marketCap != null && fcf > 0 ? r2(marketCap / (fcf * 1e6)) : null)),
+    pFcf: nonZeroRounded(row.p_fcf ?? rt.priceToFreeCashFlow ?? (marketCap != null && fcf > 0 ? r2(marketCap / (fcf * 1e6)) : null)),
+    pOcf: nonZeroRounded(row.p_ocf ?? rt.priceToOperatingCashFlow),
+    evSales: nonZeroRounded(row.ev_sales ?? rt.evSales ?? rt.evRevenue ?? (enterpriseValue != null && sales ? enterpriseValue / (sales * 1e6) : null)),
+    payoutRatio: r2(row.payout_ratio ?? rt.payoutRatio),
+    bookValuePs: nonZeroRounded(row.book_value_ps ?? rt.bookValue ?? ov.bookValuePs ?? ov.bookValue),
+    ebitda: finiteNumberOrNull(row.ebitda ?? rt.ebitda ?? ov.ebitda),
+    freeCashFlow: finiteNumberOrNull(row.free_cash_flow ?? rt.freeCashFlow ?? ov.freeCashFlow),
+    operatingCashFlow: finiteNumberOrNull(row.operating_cash_flow ?? rt.operatingCashFlow ?? ov.operatingCashFlow),
+    totalDebt: finiteNumberOrNull(row.total_debt ?? rt.totalDebt ?? ov.totalDebt),
+    totalCash: finiteNumberOrNull(row.total_cash ?? rt.totalCash ?? ov.totalCash),
+    netDebt: finiteNumberOrNull(row.net_debt ?? rt.netDebt ?? ov.netDebt),
+    evEbitda: nonZeroRounded(row.ev_ebitda ?? rt.evEbitda ?? (enterpriseValue != null && ebitda ? enterpriseValue / (ebitda * 1e6) : null)),
+    fcfYield: nonZeroRounded(row.fcf_yield ?? rt.fcfYield),
+    revGrowth: r2(row.rev_growth ?? rt.revGrowth),
+    epsGrowth: r2(row.eps_growth ?? rt.epsGrowth),
+    ma50: positiveOrNull(row.ma_50 ?? ov.ma50),
+    ma200: positiveOrNull(row.ma_200 ?? ov.ma200),
     evRevenue: nonZeroRounded(rt.evRevenue ?? (enterpriseValue != null && sales ? enterpriseValue / (sales * 1e6) : null)),
     enterpriseValue,
-    currentRatio: r2(rt.currentRatio ?? ratioOrNull(currentAssets, currentLiabilities)),
-    quickRatio: r2(rt.quickRatio ?? ratioOrNull(currentAssets != null && inventory != null ? currentAssets - inventory : null, currentLiabilities)),
+    currentRatio: r2(row.current_ratio ?? rt.currentRatio ?? ratioOrNull(currentAssets, currentLiabilities)),
+    quickRatio: r2(row.quick_ratio ?? rt.quickRatio ?? ratioOrNull(currentAssets != null && inventory != null ? currentAssets - inventory : null, currentLiabilities)),
     cashRatio: r2(rt.cashRatio ?? ratioOrNull(cash, currentLiabilities)),
     interestCoverage,
-    peg: nonZeroRounded(rt.peg ?? (pe != null && pegGrowthBase != null && pegGrowthBase > 0 ? pe / pegGrowthBase : null)),
+    peg: nonZeroRounded(computePeg(pe, pegGrowthBase, rt.peg)),
     return3m: r2(rt.return3m ?? (annualizedReturn != null ? totalReturnFromCagr(annualizedReturn, 0.25) : null)),
     return6m: r2(rt.return6m ?? (annualizedReturn != null ? totalReturnFromCagr(annualizedReturn, 0.5) : null)),
     salesGrowth3y,
@@ -6000,6 +7313,7 @@ function enrichScreenerRow(row) {
     return5y: r2(rt.return5y ?? totalReturnFromCagr(stockCagr['5y'], 5) ?? totalReturnFromCagr(annualizedReturn, 5)),
     updatedAt: row.updated_at,
   }
+  return sanitizeScreenerRatios(out)
 }
 
 async function runScreenerFromDB(filters, page, limit, sort, env, opts = {}) {
@@ -6019,11 +7333,41 @@ async function runScreenerFromDB(filters, page, limit, sort, env, opts = {}) {
   const { where, params } = buildDbWhere(filters)
   const sortCol = SCREEN_SORTS[sort?.field] || 'mkt_cap'
   const sortDir = sort?.dir === 'asc' ? 'ASC' : 'DESC'
+  // SQL-level junk predicates mirroring sanitizeScreenerRatios: when sorting by
+  // one of these columns, rows with insane raw values sort last (with the NULLs)
+  // instead of occupying the top slots. Sanitization then nulls their display value.
+  const SORT_JUNK_SQL = {
+    roe: '(ABS(roe) > 300 OR (debt_to_equity IS NOT NULL AND debt_to_equity < 0))',
+    roa: 'ABS(roa) > 200',
+    roce: 'ABS(roce) > 300',
+    net_margin: 'ABS(net_margin) > 200',
+    gross_margin: 'ABS(gross_margin) > 100.5',
+    op_margin: 'ABS(op_margin) > 200',
+    pe: '(pe < 0.5 OR pe > 2000 OR (pe < 2 AND mkt_cap >= 5e10))',
+    pb: '(pb <= 0 OR pb > 500)',
+    ev_ebitda: '(ev_ebitda <= 0 OR ev_ebitda > 1000)',
+    dividend_yield: '(dividend_yield < 0 OR dividend_yield > 50)',
+    ps: '(ps < 0 OR ps > 10000)',
+    ev_sales: '(ev_sales < 0 OR ev_sales > 10000)',
+    fcf_yield: 'ABS(fcf_yield) > 100',
+    peg: 'ABS(peg) > 100',
+    current_ratio: '(current_ratio < 0 OR current_ratio > 1000)',
+    quick_ratio: '(quick_ratio < 0 OR quick_ratio > 1000)',
+    rev_growth: '(rev_growth < -100 OR rev_growth > 10000)',
+    eps_growth: 'ABS(eps_growth) > 10000',
+    payout_ratio: '(payout_ratio < 0 OR payout_ratio > 1000)',
+    earnings_yield: 'ABS(earnings_yield) > 100',
+  }
+  const sortJunk = SORT_JUNK_SQL[sortCol]
+  const sortNullExpr = sortJunk
+    ? `(${sortCol} IS NULL OR ${sortJunk})`
+    : `${sortCol} IS NULL`
   const conditions = Array.isArray(opts.conditions) ? opts.conditions : []
   const SCALAR_METRICS = new Set([
-    'ticker','name','exchange','sector','industry',
+    'ticker','name','exchange','sector','industry','country',
     'price','currentPrice','changePct','mktCap','marketCap',
-    'pe','pb','ps','roe','roa','roce','netMargin','debtToEquity','dividendYield','earningsYield'
+    'pe','pb','ps','roe','roa','roce','netMargin','debtToEquity','dividendYield',
+    'evEbitda','fcfYield','ma50','ma200'
   ])
   const needsHeavy = conditions.some(c => c?.metric && !SCALAR_METRICS.has(c.metric))
   const sortField = SCREENER_SORT_FIELD_ALIASES[sort?.field] || sort?.field || 'mktCap'
@@ -6032,14 +7376,35 @@ async function runScreenerFromDB(filters, page, limit, sort, env, opts = {}) {
 
   if (!needsHeavy && !sortNeedsHeavy) {
     const countRow = await dbFirst(env, `SELECT COUNT(*) AS count FROM stock_data WHERE ${where}`, params).catch(() => null)
-    const total = countRow?.count || 0
+    let total = countRow?.count || 0
     const offset = (p - 1) * lim
-    const rows = await dbAll(env, `SELECT ticker,name,exchange,sector,industry,price,change_pct,mkt_cap,pe,pb,ps,roe,roa,roce,net_margin,debt_to_equity,dividend_yield,overview,financials,ratios,all_data,updated_at
+    const rows = await dbAll(env, `SELECT ticker,name,exchange,sector,industry,price,change_pct,mkt_cap,pe,pb,ps,roe,roa,roce,net_margin,debt_to_equity,dividend_yield,peg,ev_ebitda,fcf_yield,rev_growth,eps_growth,ma_50,ma_200,volume,avg_volume,year_high,year_low,beta,gross_margin,op_margin,current_ratio,country,enterprise_value,ev_sales,p_fcf,p_ocf,earnings_yield,quick_ratio,interest_coverage,payout_ratio,book_value_ps,ebitda,free_cash_flow,operating_cash_flow,total_debt,total_cash,net_debt,overview,financials,ratios,all_data,updated_at
       FROM stock_data
       WHERE ${where}
-      ORDER BY ${sortCol} IS NULL, ${sortCol} ${sortDir}, ticker ASC
+      ORDER BY ${sortNullExpr}, ${sortCol} ${sortDir}, ticker ASC
       LIMIT ? OFFSET ?`, [...params, lim, offset]).catch(() => [])
-    const results = rows.map(enrichScreenerRow)
+    let results = rows.map(enrichScreenerRow)
+    // Re-check conditions on sanitized metrics: SQL filtered on raw DB values,
+    // but sanitizeScreenerRatios may have nulled junk (e.g. 4575% ROE), so
+    // those rows no longer genuinely pass the screen.
+    const sanityConditions = conditions.filter(c => c?.metric && SANITIZED_METRICS.has(c.metric))
+    if (sanityConditions.length) {
+      const before = results.length
+      results = results.filter(row => screenerRowMatchesConditions(row, sanityConditions))
+      total = Math.max(0, total - (before - results.length))
+    }
+    // Rows whose sort value was nulled by a JSON-dependent sanity rule (sign
+    // mismatch etc.) slipped past the SQL junk predicate — drop the stragglers.
+    // Safe now: SORT_JUNK_SQL already pushed bulk junk to the end, so this only
+    // removes the occasional row instead of emptying the page.
+    if (SANITIZED_METRICS.has(sortField) && offset === 0) {
+      const before = results.length
+      const sane = results.filter(row => row[sortField] != null)
+      if (sane.length >= before / 2) {
+        results = sane
+        total = Math.max(0, total - (before - results.length))
+      }
+    }
     return {
       total,
       page: p,
@@ -6050,7 +7415,7 @@ async function runScreenerFromDB(filters, page, limit, sort, env, opts = {}) {
     }
   }
 
-  const rows = await dbAll(env, `SELECT ticker,name,exchange,sector,industry,price,change_pct,mkt_cap,pe,pb,ps,roe,roa,roce,net_margin,debt_to_equity,dividend_yield,overview,financials,ratios,all_data,updated_at
+  const rows = await dbAll(env, `SELECT ticker,name,exchange,sector,industry,price,change_pct,mkt_cap,pe,pb,ps,roe,roa,roce,net_margin,debt_to_equity,dividend_yield,peg,ev_ebitda,fcf_yield,rev_growth,eps_growth,ma_50,ma_200,volume,avg_volume,year_high,year_low,beta,gross_margin,op_margin,current_ratio,country,enterprise_value,ev_sales,p_fcf,p_ocf,earnings_yield,quick_ratio,interest_coverage,payout_ratio,book_value_ps,ebitda,free_cash_flow,operating_cash_flow,total_debt,total_cash,net_debt,overview,financials,ratios,all_data,updated_at
     FROM stock_data
     WHERE ${where}
     ORDER BY ticker ASC
@@ -6081,6 +7446,66 @@ async function runScreener(filters, page, limit, sort, env, opts = {}) {
 
 // Custom screener that applies multiple AND conditions
 // conditions = [{ metric: 'marketCap', op: '>', value: 500 }, { metric: 'pe', op: '<', value: 30 }]
+// Worker-side mirror of the frontend METRICS map, used to parse saved-screen
+// text queries server-side (for screen alerts). Keep in sync with app5.js METRICS.
+const WORKER_METRIC_MAP = {
+  'market capitalization': { key: 'marketCap', scaleM: true }, 'market cap': { key: 'marketCap', scaleM: true },
+  'price to earning': { key: 'pe' }, 'price to earnings': { key: 'pe' }, 'p e ratio': { key: 'pe' }, 'p e': { key: 'pe' },
+  'price to book': { key: 'pb' }, 'price to book value': { key: 'pb' }, 'p b': { key: 'pb' },
+  'price to sales': { key: 'ps' }, 'p s': { key: 'ps' },
+  'return on equity': { key: 'roe' }, 'roe': { key: 'roe' },
+  'return on assets': { key: 'roa' }, 'roa': { key: 'roa' },
+  'return on capital employed': { key: 'roce' }, 'roce': { key: 'roce' },
+  'net profit margin': { key: 'netMargin' }, 'net margin': { key: 'netMargin' },
+  'dividend yield': { key: 'dividendYield' }, 'debt to equity': { key: 'debtToEquity' },
+  'current price': { key: 'price' }, 'price': { key: 'price' }, 'sales': { key: 'sales' },
+  'opm': { key: 'opm' }, 'operating profit margin': { key: 'opm' },
+  'profit after tax': { key: 'profitAfterTax' }, 'pat': { key: 'profitAfterTax' },
+  'sales latest quarter': { key: 'salesLatestQuarter' },
+  'pat latest quarter': { key: 'profitAfterTaxLatestQuarter' }, 'profit after tax latest quarter': { key: 'profitAfterTaxLatestQuarter' },
+  'yoy qtr sales growth': { key: 'yoyQuarterlySalesGrowth' }, 'yoy qtr profit growth': { key: 'yoyQuarterlyProfitGrowth' },
+  'eps': { key: 'eps' }, 'debt': { key: 'debt' }, 'earnings yield': { key: 'earningsYield' },
+  'sales growth': { key: 'salesGrowth' }, 'profit growth': { key: 'profitGrowth' },
+  'price to free cash flow': { key: 'priceToFreeCashFlow' }, 'ev ebitda': { key: 'evEbitda' }, 'ev revenue': { key: 'evRevenue' },
+  'enterprise value': { key: 'enterpriseValue' }, 'current ratio': { key: 'currentRatio' },
+  'quick ratio': { key: 'quickRatio' }, 'cash ratio': { key: 'cashRatio' }, 'gross margin': { key: 'grossMargin' },
+  'interest coverage ratio': { key: 'interestCoverage' }, 'peg ratio': { key: 'peg' },
+  'sales growth 3years': { key: 'salesGrowth3y' }, 'sales growth 5years': { key: 'salesGrowth5y' },
+  'profit growth 3years': { key: 'profitGrowth3y' }, 'profit growth 5years': { key: 'profitGrowth5y' },
+  'average roe 3years': { key: 'avgRoe3y' }, 'average roe 5years': { key: 'avgRoe5y' },
+  'change': { key: 'changePct' }, 'change %': { key: 'changePct' }, 'sector': { key: 'sector', string: true },
+}
+function workerNormalizeMetric(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() }
+function parseScreenQueryToConditions(q) {
+  const conditions = []
+  for (const part of String(q || '').split(/\s+AND\s+/i)) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    const m = trimmed.match(/^(.+?)\s*(>=|<=|>|<|=)\s*(.+)$/i)
+    if (!m) continue
+    const def = WORKER_METRIC_MAP[workerNormalizeMetric(m[1])]
+    if (!def) continue
+    let value = m[3].trim()
+    if (def.string) {
+      value = value.replace(/^["']|["']$/g, '').trim()
+      if (!value) continue
+    } else {
+      const num = Number(value.replace(/[$,%]/g, '').replace(/,/g, '').trim())
+      if (isNaN(num)) continue
+      value = def.scaleM ? num * 1e6 : num
+    }
+    conditions.push({ metric: def.key, op: m[2], value })
+  }
+  return conditions
+}
+// Run a saved-screen text query and return the matched ticker rows (all pages capped).
+async function runSavedScreenQuery(env, queryText) {
+  const conditions = parseScreenQueryToConditions(queryText)
+  if (!conditions.length) return []
+  const res = await runCustomScreener(conditions, 1, 500, null, env).catch(() => null)
+  return Array.isArray(res?.results) ? res.results : []
+}
+
 async function runCustomScreener(conditions, page, limit, sort, env) {
   // Translate conditions to filter object
   const filters = {}
@@ -6096,6 +7521,10 @@ async function runCustomScreener(conditions, page, limit, sort, env) {
     }
     if (m === 'exchange') {
       if (op === '=') bucket.eq = String(cond.value || '').trim().toUpperCase()
+      continue
+    }
+    if (m === 'country') {
+      if (op === '=') bucket.eq = String(cond.value || '').trim()
       continue
     }
     const v = Number(cond.value)
@@ -6197,6 +7626,45 @@ async function getIndices() {
     return { indices: r }
   }, 15 * 60 * 1000)
 }
+// Stock-market news for the home page. Pulls FMP stable news feeds (general
+// market + latest stock headlines), merges, de-dupes, and sorts newest-first.
+// Cached 10 min so the home page never spikes the FMP budget.
+async function getMarketNews(env, limitParam) {
+  const limit = Math.min(Math.max(parseInt(limitParam, 10) || 30, 1), 60)
+  return memCached(`market-news:${limit}`, async () => {
+    const fetchFeed = (path) => fmpGet(path, env)
+      .then(r => Array.isArray(r) ? r : (Array.isArray(r?.content) ? r.content : []))
+      .catch(() => [])
+    const [general, stock] = await Promise.all([
+      fetchFeed(`/stable/news/general-latest?page=0&limit=${limit}`),
+      fetchFeed(`/stable/news/stock-latest?page=0&limit=${limit}`),
+    ])
+    const seen = new Set()
+    const items = []
+    const SPAM_RE = /class action|securities fraud|securities litigation|law firm|lawsuit deadline|lead plaintiff|investors? (may|are encouraged|are reminded|who lost|with losses)|rosen law|kahn swick|pomerantz|levi & korsinsky|glancy prongay|bronstein,? gewirtz|kirby mcinerney|robbins geller|hagens berman|schall law|shareholder rights|investigation on behalf of|deadline reminder|contact the firm|recover (your )?losses/i
+    for (const a of [...stock, ...general]) {
+      const title = a?.title?.trim()
+      const link = a?.url || a?.link
+      if (!title || !link) continue
+      if (SPAM_RE.test(title)) continue
+      const key = title.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      items.push({
+        title,
+        url: link,
+        site: a.site || a.publisher || '',
+        publisher: a.publisher || a.site || '',
+        image: a.image || '',
+        symbol: a.symbol || '',
+        publishedDate: a.publishedDate || a.date || '',
+        text: (a.text || '').slice(0, 200),
+      })
+    }
+    items.sort((x, y) => new Date(y.publishedDate || 0) - new Date(x.publishedDate || 0))
+    return { news: items.slice(0, limit) }
+  }, 10 * 60 * 1000)
+}
 async function getRefreshDebug(env) {
   if (!(await ensureDB(env))) return { error: 'D1 not bound', version: DATA_VERSION }
   const coverage = await getUniverseCoverageCounts(env)
@@ -6297,7 +7765,7 @@ async function getRefreshDebug(env) {
       scheduledRestMaxBatches: SCHEDULED_REST_MAX_BATCHES,
       deepRefreshConcurrency: DEEP_REFRESH_CONCURRENCY,
       topRefreshConcurrency: TOP_REFRESH_CONCURRENCY,
-      staleRule: `interleaved quote and fundamental batches; quotes/market cap refresh after ${QUOTE_STALE_DAYS} day; incomplete fundamentals retry after ${INCOMPLETE_FUNDAMENTAL_RETRY_DAYS} days; fundamentals and ratios age refresh after ${FUNDAMENTAL_STALE_DAYS} days; broad stock refresh after ${STOCK_STALE_DAYS} days`,
+      staleRule: `interleaved quote and fundamental batches; top-${TOP_PRIORITY_COUNT} quotes/market cap refresh after ${QUOTE_TOP_STALE_MINUTES}min, rest after ${QUOTE_STALE_REST_MINUTES}min (sub-hourly full-universe); top-${TOP_PRIORITY_COUNT} fundamentals refresh after ${TOP_FINANCIAL_STALE_DAYS} day; rest fundamentals/ratios refresh after ${FUNDAMENTAL_STALE_DAYS} days; incomplete fundamentals retry after ${INCOMPLETE_FUNDAMENTAL_RETRY_DAYS} days; broad stock refresh after ${STOCK_STALE_DAYS} days`,
     },
     sources: {
       fmpPrimary: !!fmpKey(env),

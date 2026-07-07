@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">Screening Tech Stocks for Value</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Sector Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Sector Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">How to Screen Tech Stocks for Value: High ROE Technology Stocks Guide</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -96,8 +96,8 @@ export async function onRequestGet() {
       <p style="line-height:1.75;color:#374151;margin:0 0 16px"><strong>Capital expenditure trends.</strong> The AI investment cycle has pushed capex sharply higher for large platform companies. High and rising capex can compress free cash flow even when net income stays strong, which matters if you are thinking about sustainability of returns rather than just trailing ROE.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">How to Use DeltaScreener for This</h2>
-      <p style="line-height:1.75;color:#374151;margin:0 0 16px">DeltaScreener has a pre-built page for exactly this filter combination. You can <a href="/stocks/high-roe-tech-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">screen for high ROE tech stocks on DeltaScreener</a> to see a live, auto-updated list of US technology stocks with ROE above 18% and debt-to-equity below 2. The page pulls from fresh data and updates automatically, so you do not need to run the screen manually each time.</p>
-      <p style="line-height:1.75;color:#374151;margin:0 0 16px">If you want to adjust the thresholds — for example, tightening ROE to 25% or adding a P/E cap — the <a href="/screener" style="color:#0f766e;font-weight:600;text-decoration:none">interactive screener</a> lets you build custom filter combinations from scratch with no sign-up required.</p>
+      <p style="line-height:1.75;color:#374151;margin:0 0 16px">DeltaScreener has a pre-built page for exactly this filter combination. You can <a href="/stocks/high-roe-tech-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">screen for high ROE tech stocks on DeltaScreener</a> to see a live, auto-updated list of US technology stocks with ROE above 18% and debt-to-equity below 2. The page pulls from fresh data and updates automatically, so you do not need to run the screen manually each time.</p>
+      <p style="line-height:1.75;color:#374151;margin:0 0 16px">If you want to adjust the thresholds — for example, tightening ROE to 25% or adding a P/E cap — the <a href="/screener" style="color:#2563eb;font-weight:600;text-decoration:none">interactive screener</a> lets you build custom filter combinations from scratch with no sign-up required.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">Frequently Asked Questions</h2>
       <div style="border-top:1px solid #e5e7eb;padding-top:20px">
@@ -118,10 +118,10 @@ export async function onRequestGet() {
       <p style="line-height:1.75;color:#374151;margin:32px 0 24px">Screening for high-ROE technology stocks is a reasonable starting point for investors who want quality-focused exposure to the sector without overpaying. The filters above will not catch every great stock, and they will occasionally include ones you would reject on closer look — but they do remove most of the noise efficiently. The next step is always to dig into the individual names the screen surfaces.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for high-ROE technology stocks using live US market data — free, no sign-up required.</p>
-        <a href="/stocks/high-roe-tech-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View High ROE Tech Stocks →</a>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#0f766e;text-decoration:none;font-weight:800;font-size:14px;border:1px solid #0f766e">Open Custom Screener →</a>
+        <a href="/stocks/high-roe-tech-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View High ROE Tech Stocks →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#2563eb;text-decoration:none;font-weight:800;font-size:14px;border:1px solid #2563eb">Open Custom Screener →</a>
       </div>
     </main>`
 

@@ -1,4 +1,4 @@
-// v20260609-darkmode
+// v20260628-blogsearch
 import { renderSpaShell, SITE_ORIGIN } from '../_lib/spa-shell.js'
 
 function markdownToHtml(md) {
@@ -131,13 +131,34 @@ export async function onRequestGet({ params, env }) {
 
   const bodyHtml = `
     <style>
-      body, html { background: #0f1117 !important; color: #f3f4f6 !important; }
-      body[data-theme='light'] { background: #0f1117 !important; color: #f3f4f6 !important; }
-      [data-prerender-shell] { background: #0f1117; color: #f3f4f6; }
-      [data-prerender-shell] p { color: #f3f4f6; }
-      [data-prerender-shell] li { color: #f3f4f6; }
-      [data-prerender-shell] strong { color: #ffffff; }
-      [data-prerender-shell] article { color: #f3f4f6; }
+      /* Dark is the default; the blog now respects the site theme. */
+      body[data-theme='dark'], html { background: #0f1117; color: #f3f4f6; }
+      body[data-theme='dark'] [data-prerender-shell] { background: #0f1117; color: #f3f4f6; }
+      body[data-theme='dark'] [data-prerender-shell] p,
+      body[data-theme='dark'] [data-prerender-shell] li,
+      body[data-theme='dark'] [data-prerender-shell] article { color: #f3f4f6; }
+      body[data-theme='dark'] [data-prerender-shell] strong { color: #ffffff; }
+
+      /* Light mode: flip the hardcoded dark inline colors to readable light ones. */
+      body[data-theme='light'] { background: #ffffff !important; color: #1f2937 !important; }
+      body[data-theme='light'] [data-prerender-shell],
+      body[data-theme='light'] [data-prerender-shell] main { background: #ffffff !important; color: #1f2937 !important; }
+      body[data-theme='light'] [data-prerender-shell] h1,
+      body[data-theme='light'] [data-prerender-shell] h2,
+      body[data-theme='light'] [data-prerender-shell] h3 { color: #0f172a !important; }
+      body[data-theme='light'] [data-prerender-shell] p,
+      body[data-theme='light'] [data-prerender-shell] li,
+      body[data-theme='light'] [data-prerender-shell] article,
+      body[data-theme='light'] [data-prerender-shell] td,
+      body[data-theme='light'] [data-prerender-shell] div { color: #334155 !important; }
+      body[data-theme='light'] [data-prerender-shell] strong { color: #0f172a !important; }
+      body[data-theme='light'] [data-prerender-shell] a[href^="/blog"],
+      body[data-theme='light'] [data-prerender-shell] nav a { color: #0d9488 !important; }
+      /* Cards built on white-tinted overlays read as washed-out on a white page;
+         give them a light-grey surface and a visible border in light mode. */
+      body[data-theme='light'] [data-prerender-shell] section,
+      body[data-theme='light'] [data-prerender-shell] article a[href^="/blog"] { background: #f8fafc !important; }
+      body[data-theme='light'] [data-prerender-shell] section { border-color: #e2e8f0 !important; }
     </style>
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif;color:#f3f4f6;background:#0f1117">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
@@ -155,17 +176,102 @@ export async function onRequestGet({ params, env }) {
       <p style="color:#9ca3af;font-size:16px;line-height:1.65;margin:0 0 8px">${post.description}</p>
       <div style="font-size:13px;color:#6b7280;margin-bottom:36px">Published ${formattedDate} · DeltaScreener</div>
 
+      ${post.image_url ? `<img src="${post.image_url}" alt="${post.title}" style="width:100%;border-radius:16px;margin-bottom:36px;object-fit:cover;max-height:420px;display:block" loading="lazy">` : ''}
+
+      <!-- Sticky top search bar: search US stocks (Apple, Microsoft, AAPL…) -->
+      <div id="blog-cta-bar" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:#0f2620;border-bottom:1px solid rgba(45,212,191,.3);padding:10px 16px;display:flex;align-items:center;gap:12px;transform:translateY(-100%);transition:transform .3s ease">
+        <span style="font-size:13px;font-weight:700;color:#2dd4bf;white-space:nowrap;flex-shrink:0">Search any US stock</span>
+        <div style="position:relative;flex:1;max-width:520px;margin:0 auto">
+          <input id="blog-stock-search" type="text" autocomplete="off" spellcheck="false"
+            placeholder="e.g. Apple, AAPL, Microsoft…"
+            style="width:100%;box-sizing:border-box;padding:9px 14px;border-radius:10px;border:1px solid rgba(45,212,191,.35);background:#0a1814;color:#f3f4f6;font-size:14px;font-weight:500;outline:none" />
+          <div id="blog-search-dd" role="listbox"
+            style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:#0f1a16;border:1px solid rgba(45,212,191,.25);border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45);max-height:340px;overflow-y:auto;z-index:1001"></div>
+        </div>
+        <a href="/screener" style="padding:8px 14px;border-radius:10px;background:#2dd4bf;color:#0f1117;text-decoration:none;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">Screener →</a>
+      </div>
+      <script>
+        (function(){
+          var bar = document.getElementById('blog-cta-bar');
+          if(!bar) return;
+          // Reveal the bar after the reader scrolls past the hero.
+          window.addEventListener('scroll', function(){
+            if(window.scrollY > 300) bar.style.transform = 'translateY(0)';
+            else bar.style.transform = 'translateY(-100%)';
+          }, {passive:true});
+
+          var input = document.getElementById('blog-stock-search');
+          var dd = document.getElementById('blog-search-dd');
+          if(!input || !dd) return;
+          var API = (location.host === 'deltascreener.com' || location.host.endsWith('.deltascreener.com'))
+            ? 'https://api.deltascreener.com' : 'https://screenerpro1-api.acherjeeanirban.workers.dev';
+          var seq = 0, timer = null, first = '';
+          function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+          function go(t){ if(t) location.href = '/stock/' + encodeURIComponent(t); }
+          function hide(){ dd.style.display='none'; dd.innerHTML=''; first=''; }
+          function render(items, q){
+            if(!items.length){
+              dd.innerHTML = '<div style="padding:12px 14px;color:#9ca3af;font-size:13px">Press Enter to search \"'+esc(q)+'\"</div>';
+              dd.style.display='block'; return;
+            }
+            first = items[0].ticker;
+            dd.innerHTML = items.map(function(it){
+              return '<a href="/stock/'+encodeURIComponent(it.ticker)+'" data-tk="'+esc(it.ticker)+'" '
+                + 'style="display:flex;align-items:baseline;gap:10px;padding:11px 14px;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.05)">'
+                + '<span style="font-weight:800;color:#2dd4bf;font-size:14px;min-width:58px">'+esc(it.ticker)+'</span>'
+                + '<span style="color:#cbd5e1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(it.name||it.ticker)+'</span></a>';
+            }).join('');
+            dd.style.display='block';
+            Array.prototype.forEach.call(dd.querySelectorAll('a'), function(a){
+              a.addEventListener('click', function(e){ e.preventDefault(); go(a.getAttribute('data-tk')); });
+            });
+          }
+          input.addEventListener('input', function(){
+            var q = input.value.trim();
+            if(!q){ hide(); return; }
+            clearTimeout(timer);
+            timer = setTimeout(function(){
+              var id = ++seq;
+              fetch(API + '/search?q=' + encodeURIComponent(q))
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                  if(id !== seq) return;
+                  var items = (d && Array.isArray(d.results)) ? d.results.slice(0,8).map(function(x){
+                    return { ticker: x.ticker, name: x.name || x.ticker }; }) : [];
+                  render(items, q);
+                })
+                .catch(function(){ if(id===seq) render([], q); });
+            }, 180);
+          });
+          input.addEventListener('keydown', function(e){
+            if(e.key === 'Enter'){ e.preventDefault(); go(first || input.value.trim().toUpperCase()); }
+            else if(e.key === 'Escape'){ hide(); }
+          });
+          input.addEventListener('blur', function(){ setTimeout(hide, 200); });
+        })();
+      </script>
+
       <article style="font-size:16px;line-height:1.8;color:#f3f4f6">
         <p style="margin:0 0 20px;color:#f3f4f6;line-height:1.8">${markdownToHtml(post.content || '')}</p>
       </article>
 
+      <!-- Mid-article CTA (inline, after article body) -->
+      <div style="margin:40px 0;border-radius:16px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.2);padding:22px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#2dd4bf;margin-bottom:4px">🔍 Try it yourself</div>
+          <div style="font-size:15px;font-weight:600;color:#f9fafb">Apply these filters on DeltaScreener — free, no sign-up</div>
+        </div>
+        <a href="/screener" style="flex-shrink:0;padding:10px 18px;border-radius:12px;background:#2dd4bf;color:#0f1117;text-decoration:none;font-weight:800;font-size:14px">Open Screener →</a>
+      </div>
+
       ${faqHtml}
 
-      <div style="margin-top:48px;border-radius:20px;background:linear-gradient(135deg,#0f2620 0%,#0a1628 100%);border:1px solid rgba(45,212,191,.25);padding:28px">
+      <div style="margin-top:48px;border-radius:20px;background:linear-gradient(135deg,#0f2620 0%,#0a1628 100%);border:1px solid rgba(45,212,191,.25);padding:32px">
         <div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2dd4bf;margin-bottom:10px">Free Tool</div>
-        <strong style="display:block;font-family:'IBM Plex Serif',Georgia,serif;font-size:20px;font-weight:700;color:#f9fafb;margin-bottom:8px;line-height:1.3">Screen 5,000+ US Stocks Instantly</strong>
-        <p style="margin:0 0 20px;color:#9ca3af;line-height:1.7;font-size:14px">Apply any filter from this guide — ROE, FCF, P/E, margins, and 30+ more. No sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;background:#2dd4bf;color:#0f1117;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <strong style="display:block;font-family:'IBM Plex Serif',Georgia,serif;font-size:22px;font-weight:700;color:#f9fafb;margin-bottom:8px;line-height:1.3">Screen 5,000+ US Stocks Instantly</strong>
+        <p style="margin:0 0 20px;color:#9ca3af;line-height:1.7;font-size:15px">Apply any filter from this guide — ROE, FCF, P/E, margins, and 30+ more. No sign-up required. Results in seconds.</p>
+        <a href="/screener" style="display:inline-flex;align-items:center;gap:8px;padding:14px 24px;border-radius:12px;background:#2dd4bf;color:#0f1117;text-decoration:none;font-weight:800;font-size:15px">Open Free Screener →</a>
       </div>
 
       ${relatedHtml}

@@ -106,7 +106,8 @@ def post_tweet(text: str):
 def slot_1_premarket_blog():
     """Pre-market brief + latest blog post link."""
     blog = fetch_latest_blog()
-    gainers = fetch_market_data("stock_market/gainers")[:3]
+    raw = fetch_market_data("stock_market/gainers")
+    gainers = raw[:3] if isinstance(raw, list) else []
     gainer_names = ", ".join(g.get("ticker", "") for g in gainers) if gainers else "markets moving"
 
     if blog:
@@ -132,7 +133,8 @@ def slot_1_premarket_blog():
 
 def slot_2_gainer_spotlight():
     """Top gainer spotlight — attract momentum traders."""
-    gainers = fetch_market_data("stock_market/gainers")[:5]
+    raw = fetch_market_data("stock_market/gainers")
+    gainers = raw[:5] if isinstance(raw, list) else []
     if not gainers:
         gainers = [{"ticker": "SPY", "changesPercentage": 1.2, "name": "S&P 500 ETF"}]
 
@@ -205,8 +207,12 @@ def slot_4_sector_momentum():
 
 def slot_5_eod_recap():
     """End-of-day recap + strong CTA to sign up."""
-    losers  = fetch_market_data("stock_market/losers")[:3]
-    gainers = fetch_market_data("stock_market/gainers")[:3]
+    raw_gainers = fetch_market_data("stock_market/gainers")
+    raw_losers  = fetch_market_data("stock_market/losers")
+
+    # Handle case where API returns a dict (error) instead of a list
+    gainers = raw_gainers[:3] if isinstance(raw_gainers, list) else []
+    losers  = raw_losers[:3]  if isinstance(raw_losers,  list) else []
 
     g_names = ", ".join(f"${g.get('ticker','')}" for g in gainers) if gainers else "$SPY"
     l_names = ", ".join(f"${l.get('ticker','')}" for l in losers)  if losers  else "$QQQ"

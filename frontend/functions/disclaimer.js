@@ -8,11 +8,11 @@ export async function onRequestGet() {
   const bodyHtml = `
     <main style="max-width:760px;margin:0 auto;padding:56px 16px 80px;font-family:Inter,system-ui,sans-serif;color:#111827">
       <nav style="margin-bottom:24px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
-        <a href="/" style="color:#0f766e;text-decoration:none">Home</a>
+        <a href="/" style="color:#2563eb;text-decoration:none">Home</a>
         <span style="color:#9ca3af;margin:0 6px">/</span>
         <span style="color:#374151">Disclaimer</span>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Legal</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Legal</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(32px,5vw,48px);line-height:1.08;letter-spacing:-.04em;margin:0 0 8px;color:#111827">Disclaimer</h1>
       <p style="font-size:13px;color:#9ca3af;margin:0 0 36px">Last updated: June 2026</p>
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:22px;font-weight:700;color:#111827;margin:32px 0 10px">Not investment advice</h2>

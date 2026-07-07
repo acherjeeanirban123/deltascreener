@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeltaScreener — US Stock Screener & Analysis</title>
+  <meta name="description" content="Free US stock screener with 30+ filters, 10-year financials, and custom query language. Screen NYSE & NASDAQ stocks instantly." />
+  <meta name="keywords" content="US stock screener, stock analysis, NYSE screener, NASDAQ screener, stock filters, financial ratios, DeltaScreener" />
+  <meta property="og:title" content="DeltaScreener — US Stock Screener & Analysis" />
+  <meta property="og:description" content="Free US stock screener with 30+ filters, 10-year financials, and custom query language. Screen NYSE & NASDAQ stocks instantly." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://deltascreener.com/" />
+  <meta property="og:image" content="https://deltascreener.com/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DeltaScreener — US Stock Screener & Analysis" />
+  <meta name="twitter:description" content="Free US stock screener with 30+ filters, 10-year financials, and custom query language. Screen NYSE & NASDAQ stocks instantly." />
+  <meta name="twitter:image" content="https://deltascreener.com/og-image.png" />
+  <meta name="twitter:site" content="@deltascreener" />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://deltascreener.com/" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon2-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon2.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles.css?v=20260628-pro8" />
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-40Y2P275ZZ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', 'G-40Y2P275ZZ', { send_page_view: function() {} });
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <script>try{document.body.setAttribute('data-theme',localStorage.getItem('theme')||'dark')}catch(e){}</script>
+  <div id="app">
+    <!-- Static shell for crawlers — replaced by the SPA on load -->
+    <div id="static-home-shell" style="font-family:Inter,system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:48px 16px 80px">
+      <header style="display:flex;align-items:center;gap:12px;margin-bottom:48px">
+        <a href="/" style="font-size:20px;font-weight:800;color:#0f766e;text-decoration:none">DeltaScreener</a>
+        <nav style="margin-left:auto;display:flex;gap:20px">
+          <a href="/screener" style="color:#374151;text-decoration:none;font-size:14px;font-weight:600">Screener</a>
+          <a href="/stocks" style="color:#374151;text-decoration:none;font-size:14px;font-weight:600">Screens</a>
+          <a href="/blog" style="color:#374151;text-decoration:none;font-size:14px;font-weight:600">Blog</a>
+          <a href="/pricing" style="color:#374151;text-decoration:none;font-size:14px;font-weight:600">Pricing</a>
+        </nav>
+      </header>
+      <section style="text-align:center;padding:32px 0 48px">
+        <h1 style="font-size:clamp(36px,6vw,68px);font-weight:900;letter-spacing:-0.04em;color:#0f172a;margin:0 0 20px;line-height:1.05">
+          US Stock Screener<br>&amp; Financial Analysis
+        </h1>
+        <p style="font-size:18px;color:#55606d;max-width:560px;margin:0 auto 32px;line-height:1.7">
+          Screen NYSE and NASDAQ stocks with 30+ filters — ROE, P/E, debt-to-equity, net margin, dividend yield, and more. Free access, no sign-up required.
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <a href="/screener" style="display:inline-flex;padding:14px 28px;border-radius:14px;background:#0f766e;color:#fff;font-weight:800;font-size:16px;text-decoration:none">Start screening stocks</a>
+          <a href="/stocks/high-roe-stocks" style="display:inline-flex;padding:14px 28px;border-radius:14px;background:#f1f5f9;color:#374151;font-weight:700;font-size:16px;text-decoration:none">High ROE Stocks</a>
+        </div>
+      </section>
+      <section style="margin:48px 0">
+        <h2 style="font-size:24px;font-weight:800;color:#0f172a;margin:0 0 24px;text-align:center">Popular Screens</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          <a href="/stocks/high-roe-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">High ROE Stocks</strong><span style="font-size:13px;color:#6b7280">Return on equity ≥ 18%</span></a>
+          <a href="/stocks/low-debt-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">Low Debt Stocks</strong><span style="font-size:13px;color:#6b7280">Debt-to-equity ≤ 0.5</span></a>
+          <a href="/stocks/high-roa-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">High ROA Stocks</strong><span style="font-size:13px;color:#6b7280">Return on assets ≥ 10%</span></a>
+          <a href="/stocks/dividend-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">Dividend Stocks</strong><span style="font-size:13px;color:#6b7280">Yield ≥ 2.5%, low debt</span></a>
+          <a href="/stocks/low-pe-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">Low P/E Stocks</strong><span style="font-size:13px;color:#6b7280">P/E ≤ 15, ROE ≥ 8%</span></a>
+          <a href="/stocks/undervalued-tech-stocks" style="display:block;padding:18px;border:1px solid #e2e8f0;border-radius:16px;text-decoration:none;color:#0f172a"><strong style="display:block;margin-bottom:4px">Undervalued Tech</strong><span style="font-size:13px;color:#6b7280">Tech sector, P/E ≤ 25</span></a>
+        </div>
+      </section>
+      <section style="margin:48px 0;background:#f8fafc;border-radius:24px;padding:40px 32px">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 16px">Why DeltaScreener?</h2>
+        <ul style="list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:#0f766e;font-size:20px;line-height:1">✓</span><span style="color:#374151;font-size:15px;line-height:1.6"><strong>30+ financial filters</strong> — screen by ROE, P/E, P/B, ROA, net margin, debt, dividend yield, sector, exchange, market cap, and more</span></li>
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:#0f766e;font-size:20px;line-height:1">✓</span><span style="color:#374151;font-size:15px;line-height:1.6"><strong>10-year financial history</strong> — income statement, balance sheet, and cash flow trends for every stock</span></li>
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:#0f766e;font-size:20px;line-height:1">✓</span><span style="color:#374151;font-size:15px;line-height:1.6"><strong>Full NYSE &amp; NASDAQ coverage</strong> — thousands of US-listed stocks, updated regularly from live data</span></li>
+          <li style="display:flex;gap:12px;align-items:flex-start"><span style="color:#0f766e;font-size:20px;line-height:1">✓</span><span style="color:#374151;font-size:15px;line-height:1.6"><strong>Free to use</strong> — no account required to run screens or view stock fundamentals</span></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="./src/main2.js?v=20260628-pro8"></script>
+  <script>
+    // Remove static shell once SPA has mounted
+    document.addEventListener('DOMContentLoaded', function() {
+      var shell = document.getElementById('static-home-shell');
+      if (shell) {
+        // Give the SPA a tick to render, then remove the shell if SPA replaced #app content
+        setTimeout(function() {
+          if (shell && shell.parentNode && document.getElementById('app').children.length > 1) {
+            shell.remove();
+          }
+        }, 50);
+      }
+    });
+  </script>
+</body>
+</html>

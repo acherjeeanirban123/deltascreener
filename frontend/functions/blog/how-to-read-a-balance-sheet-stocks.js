@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">Balance Sheet Guide</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">How to Read a Balance Sheet as a Stock Investor</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -128,7 +128,7 @@ export async function onRequestGet() {
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-.02em;color:#111827;margin:40px 0 16px">How to Screen for Balance Sheet Strength on DeltaScreener</h2>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">
-        You do not need to manually pull every balance sheet to find financially strong companies. You can <a href="/stocks/low-debt-stocks" style="color:#0f766e;text-decoration:underline">screen for low-debt stocks on DeltaScreener</a> using balance sheet filters — set a maximum debt-to-equity ratio, combine it with a minimum current ratio, and instantly surface companies with conservative leverage profiles.
+        You do not need to manually pull every balance sheet to find financially strong companies. You can <a href="/stocks/low-debt-stocks" style="color:#2563eb;text-decoration:underline">screen for low-debt stocks on DeltaScreener</a> using balance sheet filters — set a maximum debt-to-equity ratio, combine it with a minimum current ratio, and instantly surface companies with conservative leverage profiles.
       </p>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 24px">
         For example, filtering for D/E below 0.5 alongside positive retained earnings and a current ratio above 1.5 is a quick way to build a watchlist of financially resilient businesses — the kind of companies that tend to survive recessions and market dislocations better than their more leveraged peers.
@@ -152,13 +152,13 @@ export async function onRequestGet() {
       </p>
 
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 32px">
-        The balance sheet is not glamorous — it lacks the drama of earnings surprises or revenue growth headlines — but it is arguably the most honest snapshot of a company's financial reality. Making it a regular part of your stock research, alongside the <a href="/screener" style="color:#0f766e;text-decoration:underline">free DeltaScreener stock screener</a>, will give you an edge in identifying companies built to last.
+        The balance sheet is not glamorous — it lacks the drama of earnings surprises or revenue growth headlines — but it is arguably the most honest snapshot of a company's financial reality. Making it a regular part of your stock research, alongside the <a href="/screener" style="color:#2563eb;text-decoration:underline">free DeltaScreener stock screener</a>, will give you an edge in identifying companies built to last.
       </p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for low-debt stocks by balance sheet strength — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

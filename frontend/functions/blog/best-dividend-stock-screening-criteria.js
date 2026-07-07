@@ -62,14 +62,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">Dividend Screening Criteria</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Income Investing</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Income Investing</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">Best Dividend Stock Screening Criteria for Passive Income Investors</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date('2026-05-31').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -96,7 +96,7 @@ export async function onRequestGet() {
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 20px">FCF coverage also tells you about future dividend growth capacity. A company with FCF well above its dividend has room to raise it. One barely covering its payout is in a more precarious position, regardless of what the earnings-based payout ratio shows.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;color:#111827;margin:40px 0 16px">How to Screen for Dividend Stocks on DeltaScreener</h2>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 20px">You can apply these filters directly on DeltaScreener without signing up. The screener lets you combine yield ranges, payout ratio caps, debt-to-equity limits, and other fundamental filters across US-listed stocks in real time. Start with the <a href="/stocks/low-debt-dividend-stocks" style="color:#0f766e;font-weight:600">low debt dividend stocks screen</a> for a pre-built starting point, or build your own combination on the <a href="/screener" style="color:#0f766e;font-weight:600">free screener</a>.</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 20px">You can apply these filters directly on DeltaScreener without signing up. The screener lets you combine yield ranges, payout ratio caps, debt-to-equity limits, and other fundamental filters across US-listed stocks in real time. Start with the <a href="/stocks/low-debt-dividend-stocks" style="color:#2563eb;font-weight:600">low debt dividend stocks screen</a> for a pre-built starting point, or build your own combination on the <a href="/screener" style="color:#2563eb;font-weight:600">free screener</a>.</p>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 28px">The most durable dividend portfolios combine moderate yield with low debt and consistent cash flow. High yield alone is not a strategy — it's a starting point that needs the rest of these filters to become one.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;color:#111827;margin:40px 0 16px">Frequently Asked Questions</h2>
@@ -117,9 +117,9 @@ export async function onRequestGet() {
       </div>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for low-debt dividend stocks using yield, payout ratio, and debt filters — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

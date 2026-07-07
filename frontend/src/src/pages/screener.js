@@ -1,1 +1,1 @@
-export { renderScreenerPage } from '../app5.js?v=20260607-blog-dark2'
+export { renderScreenerPage } from '../app5.js?v=20260622-favicon'

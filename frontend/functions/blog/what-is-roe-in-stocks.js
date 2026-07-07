@@ -63,14 +63,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">What Is ROE?</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Quality</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Quality</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">What Is ROE in Stocks? Why Return on Equity Matters for Investors</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -102,7 +102,7 @@ export async function onRequestGet() {
       <p style="font-size:15px;line-height:1.75;color:#374151;margin:0 0 16px">Return on assets (ROA) is another useful cross-check. Unlike ROE, ROA is not affected by capital structure, so a company with high ROE and high ROA simultaneously is typically generating genuine operating efficiency rather than leveraged returns.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">How to Use DeltaScreener to Find High-ROE Stocks</h2>
-      <p style="font-size:15px;line-height:1.75;color:#374151;margin:0 0 16px">The fastest way to apply these ideas is to run a pre-built screen. You can <a href="/stocks/high-roe-stocks" style="color:#0f766e;text-decoration:none;font-weight:600">screen for high ROE stocks on DeltaScreener</a> — the page shows US stocks with ROE of at least 18%, positive price-to-book, and debt-to-equity below 3, updated automatically.</p>
+      <p style="font-size:15px;line-height:1.75;color:#374151;margin:0 0 16px">The fastest way to apply these ideas is to run a pre-built screen. You can <a href="/stocks/high-roe-stocks" style="color:#2563eb;text-decoration:none;font-weight:600">screen for high ROE stocks on DeltaScreener</a> — the page shows US stocks with ROE of at least 18%, positive price-to-book, and debt-to-equity below 3, updated automatically.</p>
       <p style="font-size:15px;line-height:1.75;color:#374151;margin:0 0 16px">If you want to go deeper, the interactive screener lets you combine ROE with any other metric — for example, filtering for ROE above 20%, ROA above 10%, and net margin above 15% gives a much tighter list of companies with broad-based profitability rather than leverage-driven returns.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;margin:36px 0 14px;color:#111827">Frequently Asked Questions</h2>
@@ -122,13 +122,13 @@ export async function onRequestGet() {
         <p style="font-size:15px;line-height:1.75;color:#374151;margin:0">ROE is calculated by dividing net income by average shareholders' equity, then expressing the result as a percentage. For example, if a company earns $200 million in net income and has $1 billion in equity, its ROE is 20%.</p>
       </div>
 
-      <p style="font-size:15px;line-height:1.75;color:#374151;margin:32px 0 0">ROE is a useful starting filter but works best as part of a broader checklist. Pair it with ROA, net margin, and debt metrics to get a fuller picture of whether a company's quality is genuine. Explore all these filters together on the <a href="/screener" style="color:#0f766e;text-decoration:none;font-weight:600">DeltaScreener free screener</a>.</p>
+      <p style="font-size:15px;line-height:1.75;color:#374151;margin:32px 0 0">ROE is a useful starting filter but works best as part of a broader checklist. Pair it with ROA, net margin, and debt metrics to get a fuller picture of whether a company's quality is genuine. Explore all these filters together on the <a href="/screener" style="color:#2563eb;text-decoration:none;font-weight:600">DeltaScreener free screener</a>.</p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for high-ROE stocks with live data — filter by ROE, debt-to-equity, ROA, and more. Free, no sign-up required.</p>
-        <a href="/stocks/high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View High ROE Stocks →</a>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#0f766e;text-decoration:none;font-weight:800;font-size:14px;border:1.5px solid #0f766e">Open Free Screener →</a>
+        <a href="/stocks/high-roe-stocks" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px;margin-right:10px">View High ROE Stocks →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#fff;color:#2563eb;text-decoration:none;font-weight:800;font-size:14px;border:1.5px solid #2563eb">Open Free Screener →</a>
       </div>
     </main>`
 

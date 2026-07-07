@@ -1,4 +1,10 @@
-// v20260528-3
+// v20260704-dataquality
+// Shared quality floors applied to screen pages: a market-cap floor keeps
+// micro-cap shells with junk fundamentals out, and a non-negative D/E
+// requirement excludes negative-equity companies whose ROE is meaningless.
+const MCAP_FLOOR = { metric: 'marketCap', op: '>=', value: 50000000 }
+const POSITIVE_EQUITY = { metric: 'debtToEquity', op: '>=', value: 0 }
+const ROE_SANITY_CAP = { metric: 'roe', op: '<=', value: 300 }
 const SITE_ORIGIN = 'https://deltascreener.com'
 const API_FALLBACKS = [
   'https://api.deltascreener.com',
@@ -18,8 +24,11 @@ export const SCREEN_PAGES = [
     metaDescription: 'Explore US high ROE stocks with live price, market cap, valuation, and profitability data. Updated automatically on DeltaScreener.',
     conditions: [
       { metric: 'roe', op: '>=', value: 18 },
+      ROE_SANITY_CAP,
       { metric: 'pb', op: '>', value: 0 },
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 3 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'roe', dir: 'desc' },
     related: ['low-debt-stocks', 'high-roa-stocks', 'undervalued-tech-stocks'],
@@ -36,9 +45,11 @@ export const SCREEN_PAGES = [
     intro: 'This screen focuses on stocks with conservative debt loads, which can help investors find companies with stronger balance sheet flexibility.',
     metaDescription: 'Browse US low debt stocks with live financial ratios, valuation data, and market cap filters. Auto-updated on DeltaScreener.',
     conditions: [
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 0.5 },
       { metric: 'roe', op: '>=', value: 8 },
       { metric: 'pb', op: '>', value: 0 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'debtToEquity', dir: 'asc' },
     related: ['low-debt-dividend-stocks', 'high-roe-stocks', 'nyse-low-debt-stocks'],
@@ -56,7 +67,9 @@ export const SCREEN_PAGES = [
     metaDescription: 'Find US high ROA stocks with current valuation, profitability, and market cap data. Freshly updated stock screener results.',
     conditions: [
       { metric: 'roa', op: '>=', value: 10 },
+      { metric: 'roa', op: '<=', value: 200 },
       { metric: 'pb', op: '>', value: 0 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'roa', dir: 'desc' },
     related: ['high-roe-stocks', 'high-net-margin-stocks', 'low-pe-stocks'],
@@ -74,7 +87,9 @@ export const SCREEN_PAGES = [
     metaDescription: 'Discover US high net margin stocks with live market cap, price, ROE, and balance sheet data. Updated throughout the week.',
     conditions: [
       { metric: 'netMargin', op: '>=', value: 20 },
+      { metric: 'netMargin', op: '<=', value: 200 },
       { metric: 'roa', op: '>=', value: 5 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'netMargin', dir: 'desc' },
     related: ['high-roa-stocks', 'high-roe-stocks', 'low-pb-stocks'],
@@ -91,9 +106,12 @@ export const SCREEN_PAGES = [
     intro: 'This page highlights lower P/E names that still show usable profitability metrics, helping avoid the weakest corners of value screens.',
     metaDescription: 'Screen US low PE stocks with live valuation, profitability, and balance sheet metrics. Programmatic SEO page updated automatically.',
     conditions: [
+      { metric: 'pe', op: '>=', value: 1 },
       { metric: 'pe', op: '<=', value: 15 },
       { metric: 'roe', op: '>=', value: 8 },
       { metric: 'pb', op: '>', value: 0 },
+      POSITIVE_EQUITY,
+      MCAP_FLOOR,
     ],
     sort: { field: 'pe', dir: 'asc' },
     related: ['low-pb-stocks', 'undervalued-tech-stocks', 'low-debt-stocks'],
@@ -110,8 +128,11 @@ export const SCREEN_PAGES = [
     intro: 'Low price-to-book screens can help surface asset-backed value opportunities, especially when paired with positive returns on equity.',
     metaDescription: 'Browse US low price-to-book stocks with live valuation, ROE, debt, and market cap data on DeltaScreener.',
     conditions: [
+      { metric: 'pb', op: '>', value: 0 },
       { metric: 'pb', op: '<=', value: 2 },
       { metric: 'roe', op: '>=', value: 8 },
+      POSITIVE_EQUITY,
+      MCAP_FLOOR,
     ],
     sort: { field: 'pb', dir: 'asc' },
     related: ['low-pe-stocks', 'low-debt-stocks', 'dividend-stocks'],
@@ -129,7 +150,10 @@ export const SCREEN_PAGES = [
     metaDescription: 'Find dividend-paying US stocks with yield, valuation, ROE, and debt metrics. SEO page refreshed automatically on Cloudflare.',
     conditions: [
       { metric: 'dividendYield', op: '>=', value: 2.5 },
+      { metric: 'dividendYield', op: '<=', value: 50 },
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 2.5 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'dividendYield', dir: 'desc' },
     related: ['low-debt-dividend-stocks', 'low-debt-stocks', 'low-pe-stocks'],
@@ -147,8 +171,11 @@ export const SCREEN_PAGES = [
     metaDescription: 'Explore low debt dividend stocks in the US market with live yield, ROE, PE, and debt-to-equity data.',
     conditions: [
       { metric: 'dividendYield', op: '>=', value: 1.5 },
+      { metric: 'dividendYield', op: '<=', value: 50 },
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 1 },
       { metric: 'roe', op: '>=', value: 8 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'dividendYield', dir: 'desc' },
     related: ['dividend-stocks', 'low-debt-stocks', 'nyse-low-debt-stocks'],
@@ -166,9 +193,13 @@ export const SCREEN_PAGES = [
     metaDescription: 'Browse undervalued technology stocks with live PE, PB, ROE, and market cap data for the US market.',
     conditions: [
       { metric: 'sector', op: '=', value: 'Technology' },
+      { metric: 'pe', op: '>=', value: 1 },
       { metric: 'pe', op: '<=', value: 25 },
       { metric: 'pb', op: '<=', value: 8 },
       { metric: 'roe', op: '>=', value: 10 },
+      ROE_SANITY_CAP,
+      POSITIVE_EQUITY,
+      MCAP_FLOOR,
     ],
     sort: { field: 'roe', dir: 'desc' },
     related: ['high-roe-tech-stocks', 'low-pe-stocks', 'high-roe-stocks'],
@@ -187,7 +218,10 @@ export const SCREEN_PAGES = [
     conditions: [
       { metric: 'sector', op: '=', value: 'Technology' },
       { metric: 'roe', op: '>=', value: 18 },
+      ROE_SANITY_CAP,
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 2 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'roe', dir: 'desc' },
     related: ['undervalued-tech-stocks', 'high-roe-stocks', 'nasdaq-high-roe-stocks'],
@@ -206,7 +240,10 @@ export const SCREEN_PAGES = [
     conditions: [
       { metric: 'exchange', op: '=', value: 'NASDAQ' },
       { metric: 'roe', op: '>=', value: 18 },
+      ROE_SANITY_CAP,
       { metric: 'pb', op: '>', value: 0 },
+      POSITIVE_EQUITY,
+      MCAP_FLOOR,
     ],
     sort: { field: 'roe', dir: 'desc' },
     related: ['high-roe-tech-stocks', 'high-roe-stocks', 'penny-stocks'],
@@ -224,8 +261,10 @@ export const SCREEN_PAGES = [
     metaDescription: 'Explore NYSE low debt stocks with live ROE, PE, debt-to-equity, and market cap data.',
     conditions: [
       { metric: 'exchange', op: '=', value: 'NYSE' },
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 0.5 },
       { metric: 'roe', op: '>=', value: 8 },
+      MCAP_FLOOR,
     ],
     sort: { field: 'debtToEquity', dir: 'asc' },
     related: ['low-debt-stocks', 'low-debt-dividend-stocks', 'low-pb-stocks'],
@@ -244,6 +283,7 @@ export const SCREEN_PAGES = [
     conditions: [
       { metric: 'price', op: '<=', value: 5 },
       { metric: 'marketCap', op: '>=', value: 200000000 },
+      POSITIVE_EQUITY,
       { metric: 'debtToEquity', op: '<=', value: 3 },
     ],
     sort: { field: 'marketCap', dir: 'desc' },
@@ -255,7 +295,242 @@ export const SCREEN_PAGES = [
   },
 ]
 
+// ──────────────────────────────────────────────────────────────────────────
+// PROGRAMMATIC GENERATOR — Tier 1: metric × sector screens.
+// Produces SCREEN_PAGES-shaped objects so the hub, sitemap, lookup, and
+// renderScreenPage all pick them up with zero downstream changes. The
+// `results.length >= 3` guard in renderScreenPage noindexes any thin combo,
+// so empty permutations never publish a low-quality page.
+// ──────────────────────────────────────────────────────────────────────────
+
+// Each metric defines its slug fragment, display label, screen conditions
+// (the base profitability/quality filters), sort, and a couple of copy
+// variants so generated pages aren't byte-identical boilerplate.
+const GEN_METRICS = [
+  {
+    key: 'high-roe', label: 'High ROE', cluster: 'Sector Quality',
+    conditions: [{ metric: 'roe', op: '>=', value: 18 }, ROE_SANITY_CAP, POSITIVE_EQUITY, { metric: 'debtToEquity', op: '<=', value: 3 }, MCAP_FLOOR],
+    sort: { field: 'roe', dir: 'desc' },
+    blurb: 'companies generating strong return on equity',
+    why: 'Return on equity highlights how efficiently a business turns shareholder capital into profit, and a debt ceiling keeps leverage-inflated names out of the list.',
+    faq: ['What counts as high ROE here?', 'This screen looks for return on equity of at least 18% alongside a debt-to-equity cap, so the quality signal is not just a product of leverage.'],
+  },
+  {
+    key: 'high-roa', label: 'High ROA', cluster: 'Sector Quality',
+    conditions: [{ metric: 'roa', op: '>=', value: 10 }, { metric: 'roa', op: '<=', value: 200 }, { metric: 'pb', op: '>', value: 0 }, MCAP_FLOOR],
+    sort: { field: 'roa', dir: 'desc' },
+    blurb: 'businesses earning strong returns on their asset base',
+    why: 'Return on assets is a quality measure that is less sensitive to leverage than ROE, which makes it useful for comparing companies across very different balance sheets.',
+    faq: ['Why screen by ROA?', 'ROA rewards companies that generate profit from the assets they control, so it surfaces operational efficiency rather than financial engineering.'],
+  },
+  {
+    key: 'high-net-margin', label: 'High Net Margin', cluster: 'Sector Profitability',
+    conditions: [{ metric: 'netMargin', op: '>=', value: 18 }, { metric: 'netMargin', op: '<=', value: 200 }, { metric: 'roa', op: '>=', value: 5 }, MCAP_FLOOR],
+    sort: { field: 'netMargin', dir: 'desc' },
+    blurb: 'companies with strong net profit margins',
+    why: 'High net margins can point to pricing power, cost discipline, or structurally attractive economics, and a minimum ROA keeps the list grounded in real asset productivity.',
+    faq: ['What does a high net margin tell you?', 'A consistently high net margin often signals durable competitive advantages, though margins should always be read in the context of the sector.'],
+  },
+  {
+    key: 'low-pe', label: 'Low PE', cluster: 'Sector Value',
+    conditions: [{ metric: 'pe', op: '<=', value: 18 }, { metric: 'pe', op: '>=', value: 1 }, { metric: 'roe', op: '>=', value: 8 }, POSITIVE_EQUITY, MCAP_FLOOR],
+    sort: { field: 'pe', dir: 'asc' },
+    blurb: 'lower-P/E names that still post usable profitability',
+    why: 'A low price-to-earnings ratio can flag value, but a minimum ROE floor helps avoid the cheapest-for-a-reason corners of the market.',
+    faq: ['Are loss-making companies included?', 'No. A valid positive P/E is required, so deeply unprofitable names are filtered out of this screen.'],
+  },
+  {
+    key: 'low-pb', label: 'Low PB', cluster: 'Sector Value',
+    conditions: [{ metric: 'pb', op: '<=', value: 2 }, { metric: 'pb', op: '>', value: 0 }, { metric: 'roe', op: '>=', value: 8 }, POSITIVE_EQUITY, MCAP_FLOOR],
+    sort: { field: 'pb', dir: 'asc' },
+    blurb: 'asset-backed value names trading at low price-to-book',
+    why: 'Low price-to-book can surface asset-rich value opportunities, and pairing it with a return-on-equity floor avoids the weakest, value-trap end of the screen.',
+    faq: ['Why combine low P/B with ROE?', 'Low book multiples without profitability often produce weak lists, so this page keeps a minimum ROE requirement.'],
+  },
+  {
+    key: 'dividend', label: 'Dividend', cluster: 'Sector Income',
+    conditions: [{ metric: 'dividendYield', op: '>=', value: 2 }, { metric: 'dividendYield', op: '<=', value: 50 }, POSITIVE_EQUITY, { metric: 'debtToEquity', op: '<=', value: 2.5 }, MCAP_FLOOR],
+    sort: { field: 'dividendYield', dir: 'desc' },
+    blurb: 'dividend-paying companies with reasonable balance sheets',
+    why: 'Current yield is the starting point for income screens, and a debt ceiling helps filter out payouts that may be propped up by an overstretched balance sheet.',
+    faq: ['Is this based on current yield?', 'Yes. The screen uses current dividend yield plus a debt filter; it is not a dividend-growth-streak screen.'],
+  },
+  {
+    key: 'low-debt', label: 'Low Debt', cluster: 'Sector Balance Sheet',
+    conditions: [POSITIVE_EQUITY, { metric: 'debtToEquity', op: '<=', value: 0.5 }, { metric: 'roe', op: '>=', value: 8 }, MCAP_FLOOR],
+    sort: { field: 'debtToEquity', dir: 'asc' },
+    blurb: 'companies carrying conservative debt loads',
+    why: 'A low debt-to-equity ratio signals balance-sheet flexibility, and a profitability floor keeps the list from filling up with low-leverage but low-quality businesses.',
+    faq: ['Why are some banks missing?', 'Financial-sector balance sheets work differently, so many lenders are filtered out by a conservative debt-to-equity threshold.'],
+  },
+]
+
+// Sectors as stored in the backend dataset, with a URL-friendly slug fragment
+// and a natural-language label used in copy.
+const GEN_SECTORS = [
+  { slug: 'technology', value: 'Technology', label: 'Technology' },
+  { slug: 'healthcare', value: 'Healthcare', label: 'Healthcare' },
+  { slug: 'financial', value: 'Financial Services', label: 'Financial' },
+  { slug: 'energy', value: 'Energy', label: 'Energy' },
+  { slug: 'industrial', value: 'Industrials', label: 'Industrial' },
+  { slug: 'consumer-cyclical', value: 'Consumer Cyclical', label: 'Consumer Cyclical' },
+  { slug: 'consumer-defensive', value: 'Consumer Defensive', label: 'Consumer Defensive' },
+  { slug: 'utility', value: 'Utilities', label: 'Utility' },
+  { slug: 'real-estate', value: 'Real Estate', label: 'Real Estate' },
+  { slug: 'basic-materials', value: 'Basic Materials', label: 'Basic Materials' },
+  { slug: 'communication', value: 'Communication Services', label: 'Communication' },
+]
+
+function generateScreens() {
+  const out = []
+  for (const m of GEN_METRICS) {
+    for (const s of GEN_SECTORS) {
+      const slug = `${m.key}-${s.slug}-stocks`
+      const title = `${m.label} ${s.label} Stocks`
+      // Pick 3 related screens: same metric in two other sectors + the
+      // hand-curated all-sector version of this metric if one exists.
+      const sectorSiblings = GEN_SECTORS
+        .filter(x => x.slug !== s.slug)
+        .slice(0, 2)
+        .map(x => `${m.key}-${x.slug}-stocks`)
+      const related = [`${m.key}-stocks`, ...sectorSiblings].slice(0, 3)
+      out.push({
+        slug,
+        title,
+        h1: title,
+        cluster: m.cluster,
+        intro: `This page screens the US ${s.label.toLowerCase()} sector for ${m.blurb}, refreshed automatically from live data.`,
+        metaDescription: `${m.label} ${s.label.toLowerCase()} stocks in the US market with live price, valuation, and profitability data. Auto-updated on DeltaScreener.`,
+        conditions: [{ metric: 'sector', op: '=', value: s.value }, ...m.conditions],
+        sort: m.sort,
+        related,
+        faqs: [
+          m.faq,
+          [`Is this screen limited to ${s.label.toLowerCase()} stocks?`, `Yes. Every result is filtered to the US ${s.label.toLowerCase()} sector, so the list stays focused on one part of the market. ${m.why}`],
+        ],
+        generated: true,
+      })
+    }
+  }
+  return out
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PROGRAMMATIC GENERATOR — Tier 2: price-tier and exchange slices.
+// These attach a single high-intent modifier (price ceiling, or listing
+// exchange) to the all-sector version of each metric. We deliberately do NOT
+// take the full metric × sector × price × exchange cartesian product — that
+// would produce tens of thousands of mostly-thin, near-duplicate pages. Each
+// page here targets a distinct, commonly-searched query ("high roe stocks
+// under $10", "nasdaq dividend stocks"). The results.length >= 3 guard in
+// renderScreenPage still noindexes any combo that comes up short.
+// ──────────────────────────────────────────────────────────────────────────
+const GEN_PRICE_TIERS = [
+  { slug: 'under-5', value: 5, label: 'Under $5' },
+  { slug: 'under-10', value: 10, label: 'Under $10' },
+  { slug: 'under-50', value: 50, label: 'Under $50' },
+]
+
+const GEN_EXCHANGES = [
+  { slug: 'nasdaq', value: 'NASDAQ', label: 'Nasdaq' },
+  { slug: 'nyse', value: 'NYSE', label: 'NYSE' },
+]
+
+function generateTier2() {
+  const out = []
+
+  // Price-tier slices: <metric> stocks under $X
+  for (const m of GEN_METRICS) {
+    for (const p of GEN_PRICE_TIERS) {
+      const slug = `${m.key}-stocks-${p.slug}`
+      const title = `${m.label} Stocks ${p.label}`
+      const siblings = GEN_PRICE_TIERS.filter(x => x.slug !== p.slug).map(x => `${m.key}-stocks-${x.slug}`)
+      out.push({
+        slug,
+        title,
+        h1: title,
+        cluster: 'Price Tier',
+        intro: `This page screens the US market for ${m.blurb}, limited to shares trading at ${p.label.toLowerCase().replace('under ', 'under ')}. Refreshed automatically from live data.`,
+        metaDescription: `${m.label} US stocks priced ${p.label.toLowerCase()} with live valuation and profitability data. Auto-updated on DeltaScreener.`,
+        conditions: [...m.conditions, { metric: 'price', op: '<=', value: p.value }],
+        sort: m.sort,
+        related: [`${m.key}-stocks`, ...siblings].slice(0, 3),
+        faqs: [
+          m.faq,
+          [`Are these all priced ${p.label.toLowerCase()}?`, `Yes. Every result trades at or below $${p.value} per share. ${m.why} A low share price alone says nothing about value, so always read it alongside the fundamentals shown on each page.`],
+        ],
+        generated: true,
+      })
+    }
+  }
+
+  // Exchange slices: <exchange> <metric> stocks
+  for (const m of GEN_METRICS) {
+    for (const x of GEN_EXCHANGES) {
+      const slug = `${x.slug}-${m.key}-stocks`
+      const title = `${x.label} ${m.label} Stocks`
+      const siblings = GEN_EXCHANGES.filter(e => e.slug !== x.slug).map(e => `${e.slug}-${m.key}-stocks`)
+      out.push({
+        slug,
+        title,
+        h1: title,
+        cluster: 'Exchange',
+        intro: `This page screens ${x.label}-listed US stocks for ${m.blurb}, refreshed automatically from live data.`,
+        metaDescription: `${x.label} ${m.label.toLowerCase()} stocks with live price, valuation, and profitability data. Auto-updated on DeltaScreener.`,
+        conditions: [{ metric: 'exchange', op: '=', value: x.value }, ...m.conditions],
+        sort: m.sort,
+        related: [`${m.key}-stocks`, ...siblings].slice(0, 3),
+        faqs: [
+          m.faq,
+          [`Are all results listed on ${x.label}?`, `Yes. This screen is filtered to ${x.label}-listed US stocks, which is useful for exchange-specific search and avoids mixing listing universes. ${m.why}`],
+        ],
+        generated: true,
+      })
+    }
+  }
+
+  return out
+}
+
+export const GENERATED_SCREENS = [...generateScreens(), ...generateTier2()]
+
+// Hand-curated screens take precedence on any slug collision (better copy).
+const _curatedSlugs = new Set(SCREEN_PAGES.map(s => s.slug))
+const _seen = new Set(_curatedSlugs)
+for (const s of GENERATED_SCREENS) {
+  if (_seen.has(s.slug)) continue
+  _seen.add(s.slug)
+  SCREEN_PAGES.push(s)
+}
+
 export const SCREEN_LOOKUP = Object.fromEntries(SCREEN_PAGES.map(screen => [screen.slug, screen]))
+
+// ──────────────────────────────────────────────────────────────────────────
+// Single source of truth for blog articles.
+// The sitemap (renderSitemap) and the blog index (/blog) BOTH derive from this
+// list so the two can never drift apart. Newest first. Every slug here must
+// have a matching functions/blog/<slug>.js renderer.
+// ──────────────────────────────────────────────────────────────────────────
+// Live set mirrors the D1 `blog_posts` table (what /blog actually links).
+// Keep in sync with the database; the sitemap derives from this list.
+export const BLOG_POSTS = [
+  { slug: 'debt-to-equity-ratio-stock-screening', title: 'Debt-to-Equity Ratio: How to Screen for Low-Debt Stocks', description: 'Learn how to use the debt-to-equity ratio to screen for financially sound, low-debt stocks — and why balance sheet strength matters across industries.', cluster: 'Financial Metrics', published_at: '2026-06-19' },
+  { slug: 'debt-to-equity-ratio-stock-screening-guide', title: 'Debt-to-Equity Ratio: How to Screen for Financially Sound Stocks', description: 'A practical guide to screening stocks by debt-to-equity ratio. Understand what a healthy D/E looks like by sector and how to filter for resilient companies.', cluster: 'Financial Metrics', published_at: '2026-06-18' },
+  { slug: 'how-to-screen-healthcare-stocks-filters', title: 'How to Screen for Healthcare Stocks in Any Market', description: 'Learn which filters matter most when screening healthcare stocks — margins, R&D, pipeline risk, and valuation — to find quality names in any market.', cluster: 'Sector Investing', published_at: '2026-06-17' },
+  { slug: 'high-roe-stock-screening-guide', title: 'Return on Equity Explained: How to Screen for High-ROE Stocks', description: 'Return on equity measures how efficiently a company turns shareholder capital into profit. Learn how to screen for sustainable high-ROE stocks.', cluster: 'Financial Metrics', published_at: '2026-06-15' },
+  { slug: 'return-on-equity-roe-stock-screening', title: 'Return on Equity (ROE): How to Screen for Quality Stocks', description: 'Learn how to use ROE to screen for quality businesses, what counts as a good ROE, and how to avoid ROE inflated by debt.', cluster: 'Financial Metrics', published_at: '2026-06-14' },
+  { slug: 'price-to-sales-ratio-stock-screening', title: 'Price-to-Sales Ratio: How to Screen Stocks Without Earnings', description: 'The price-to-sales ratio helps you value companies that are not yet profitable. Learn how to use P/S to screen growth and turnaround stocks.', cluster: 'Financial Metrics', published_at: '2026-06-13' },
+  { slug: 'growth-vs-value-stock-screening-strategies', title: 'Growth vs Value Stock Screening: Filters That Actually Work', description: 'Compare growth and value screening strategies and learn which filters actually identify each style of stock — with practical screen examples.', cluster: 'Growth Investing', published_at: '2026-06-11' },
+  { slug: 'free-cash-flow-screening-find-quality-stocks', title: 'Free Cash Flow Screening: Find Stocks That Actually Generate Cash', description: 'Free cash flow reveals which companies truly generate cash after investment. Learn how to screen for strong FCF and avoid earnings mirages.', cluster: 'Financial Metrics', published_at: '2026-06-09' },
+  { slug: 'how-to-avoid-value-traps-stock-screening', title: 'How to Avoid Value Traps When Screening Stocks', description: 'Cheap stocks are not always good value. Learn the warning signs of value traps and which filters help you avoid them when screening.', cluster: 'Value Investing', published_at: '2026-06-08' },
+  { slug: 'sector-rotation-strategies-us-stock-screening', title: 'Sector Rotation Strategies for US Stock Screeners', description: 'Learn how sector rotation works across the economic cycle and how to build screens that adapt to leading and lagging sectors.', cluster: 'Sector Investing', published_at: '2026-06-07' },
+  { slug: 'ev-ebitda-valuation-ratio-stock-screening', title: 'EV/EBITDA Explained: The Valuation Ratio Serious Screeners Use', description: 'EV/EBITDA accounts for debt and capital structure in a way P/E cannot. Learn how to use it to screen for fairly valued stocks.', cluster: 'Value Investing', published_at: '2026-06-05' },
+  { slug: 'how-to-screen-dividend-stocks-practical-guide', title: 'How to Screen for Dividend Stocks: A Practical Guide', description: 'A practical guide to screening dividend stocks by yield, payout ratio, and dividend growth — and how to spot payouts at risk.', cluster: 'Dividend Investing', published_at: '2026-05-31' },
+  { slug: 'momentum-stock-screening-systematic-approach', title: 'Momentum Stock Screening: A Systematic Approach', description: 'Learn how to build a systematic momentum screen using price strength, volume, and earnings revisions to find stocks in strong uptrends.', cluster: 'Market Strategy', published_at: '2026-05-29' },
+  { slug: 'how-to-screen-us-stocks-like-a-pro-2026', title: 'How to Screen US Stocks Like a Pro: A Complete Guide for 2026', description: 'A complete 2026 guide to screening US stocks — which filters matter, how to combine them, and how to turn a screen into a focused watchlist.', cluster: 'Screening Guides', published_at: '2026-05-28' },
+]
+
+export const BLOG_LOOKUP = Object.fromEntries(BLOG_POSTS.map(p => [p.slug, p]))
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -271,6 +546,7 @@ function stripHtml(value) {
 }
 
 function numberOrNull(value) {
+  if (value == null || value === '') return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
 }
@@ -281,6 +557,7 @@ function compactUsd(value) {
   if (Math.abs(n) >= 1e12) return `$${(n / 1e12).toFixed(2)}T`
   if (Math.abs(n) >= 1e9) return `$${(n / 1e9).toFixed(2)}B`
   if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(1)}M`
+  if (Math.abs(n) >= 1e3) return `$${(n / 1e3).toFixed(1)}K`
   return `$${n.toFixed(0)}`
 }
 
@@ -403,12 +680,27 @@ export async function fetchScreenResults(context, screen) {
   })
 }
 
+// Defensive scrub mirroring the worker's sanitizeScreenerRatios — nulls
+// impossible values so junk data never renders even if the API lags a deploy.
+function scrubSeoRow(row) {
+  if (!row || typeof row !== 'object') return row
+  const bad = (v, lim) => v != null && Number.isFinite(Number(v)) && Math.abs(Number(v)) > lim
+  const out = { ...row }
+  if (out.debtToEquity != null && out.debtToEquity < 0) out.roe = null
+  if (bad(out.roe, 300)) out.roe = null
+  if (bad(out.roa, 200)) out.roa = null
+  if (bad(out.netMargin, 200)) out.netMargin = null
+  if (out.pe != null && (out.pe <= 0 || out.pe > 2000)) out.pe = null
+  return out
+}
+
 function screenStats(results = []) {
   const rows = Array.isArray(results) ? results : []
   const sectors = topBuckets(rows, 'sector', 3)
   return {
-    avgRoe: average(rows.map(row => row.roe)),
-    avgDebt: average(rows.map(row => row.debtToEquity)),
+    // Medians, not means — a single leftover outlier can't distort the header.
+    medianRoe: median(rows.map(row => row.roe)),
+    medianDebt: median(rows.map(row => row.debtToEquity)),
     medianPe: median(rows.map(row => row.pe)),
     medianPb: median(rows.map(row => row.pb)),
     medianMarketCap: median(rows.map(row => row.mktCap)),
@@ -499,7 +791,7 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-  <link rel="stylesheet" href="/src/styles.css?v=20260425-4" />
+  <link rel="stylesheet" href="/src/styles.css?v=20260704-dataquality" />
   <style>
     :root { color-scheme: light; }
     body{margin:0;background:linear-gradient(180deg,#f5f6f0 0%,#fbfbf8 30%,#ffffff 100%);color:#14202b;font-family:Inter,system-ui,sans-serif}
@@ -507,17 +799,17 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
     .seo-nav{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774}
     .seo-nav ol{list-style:none;padding:0;margin:0;display:flex;align-items:center;gap:6px}
     .seo-nav li{display:inline-flex;align-items:center;gap:6px}
-    .seo-nav a{color:#0f766e;text-decoration:none}
+    .seo-nav a{color:#2563eb;text-decoration:none}
     .seo-nav li+li::before{content:"/";color:#9ca3af;font-weight:400}
     .seo-hero{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.9fr);gap:22px;align-items:start;margin-top:18px}
     .seo-card{background:rgba(255,255,255,.92);border:1px solid rgba(208,214,222,.95);border-radius:24px;box-shadow:0 20px 48px rgba(15,23,42,.06)}
     .seo-hero-main{padding:28px}
     .seo-hero-side{padding:24px;background:linear-gradient(180deg,#fffdf4 0%,#fff 100%)}
-    .seo-kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px}
+    .seo-kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px}
     .seo-hero h1{margin:0 0 14px;font-family:"IBM Plex Serif",Georgia,serif;font-size:clamp(34px,5vw,58px);line-height:1;letter-spacing:-.05em}
     .seo-hero p{margin:0;color:#55606d;line-height:1.75;font-size:16px}
     .seo-badges{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 0}
-    .seo-badges span{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#eef8f5;color:#0f766e;font-size:13px;font-weight:700}
+    .seo-badges span{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#eef8f5;color:#2563eb;font-size:13px;font-weight:700}
     .seo-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:24px 0}
     .seo-stat{padding:18px;border-radius:20px;border:1px solid rgba(208,214,222,.95);background:#fff}
     .seo-stat strong{display:block;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
@@ -530,14 +822,14 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
     .seo-table{width:100%;border-collapse:collapse}
     .seo-table th,.seo-table td{padding:12px 10px;border-bottom:1px solid rgba(226,232,240,.95);text-align:left;font-size:14px}
     .seo-table th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280}
-    .seo-table a{color:#0f766e;text-decoration:none;font-weight:700}
+    .seo-table a{color:#2563eb;text-decoration:none;font-weight:700}
     .seo-chip-grid{display:grid;gap:10px}
     .seo-chip{display:block;padding:14px 16px;border:1px solid rgba(208,214,222,.95);border-radius:18px;background:#fff;color:#14202b;text-decoration:none}
     .seo-chip strong{display:block;font-size:15px}
     .seo-chip span{display:block;margin-top:4px;font-size:13px;color:#667180}
     .seo-cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
     .seo-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:14px;font-weight:800;text-decoration:none}
-    .seo-btn-primary{background:#0f766e;color:#fff}
+    .seo-btn-primary{background:#2563eb;color:#fff}
     .seo-btn-secondary{background:#fff;color:#14202b;border:1px solid rgba(208,214,222,.95)}
     .seo-faq-item + .seo-faq-item{margin-top:14px}
     .seo-muted{color:#6b7280;font-size:14px}
@@ -554,14 +846,14 @@ ${body}
 }
 
 export function renderScreenPage(screen, payload = {}) {
-  const results = Array.isArray(payload.results) ? payload.results : []
+  const results = (Array.isArray(payload.results) ? payload.results : []).map(scrubSeoRow)
   const stats = screenStats(results)
   const topSectorText = stats.sectors.length
     ? stats.sectors.map(([name, count]) => `${name} (${count})`).join(', ')
     : 'Mixed sectors'
   const related = relatedLinks(screen)
   const canonical = `${SITE_ORIGIN}/stocks/${screen.slug}`
-  const indexable = results.length >= 10
+  const indexable = results.length >= 3
   const robots = indexable ? 'index,follow' : 'noindex,follow'
   const updatedAt = isoDate(payload.updatedAt)
   const title = `${screen.title} (${payload.total || results.length || 0} US Stocks) | DeltaScreener`
@@ -603,18 +895,18 @@ export function renderScreenPage(screen, payload = {}) {
           <span>${escapeHtml(`${payload.screenableUniverse || '—'} stock screenable universe`)}</span>
         </div>
         <div class="seo-summary">
-          <div class="seo-stat"><strong>Average ROE</strong><span>${pct(stats.avgRoe)}</span></div>
-          <div class="seo-stat"><strong>Average Debt / Equity</strong><span>${num(stats.avgDebt)}</span></div>
+          <div class="seo-stat"><strong>Median ROE</strong><span>${pct(stats.medianRoe)}</span></div>
+          <div class="seo-stat"><strong>Median Debt / Equity</strong><span>${num(stats.medianDebt)}</span></div>
           <div class="seo-stat"><strong>Median P/E</strong><span>${num(stats.medianPe)}</span></div>
           <div class="seo-stat"><strong>Median Market Cap</strong><span>${compactUsd(stats.medianMarketCap)}</span></div>
         </div>
       </article>
       <aside class="seo-card seo-hero-side">
-        <div class="seo-kicker">Why this page exists</div>
-        <p>This route is server-rendered on Cloudflare Pages Functions, refreshed from your screener backend, and only indexed when the result set stays useful enough to avoid thin-page SEO.</p>
+        <div class="seo-kicker">Screen further</div>
+        <p>Use the interactive screener to build custom filters, adjust thresholds, and export results. Over 30 metrics available across the full US stock universe.</p>
         <div class="seo-cta">
           <a class="seo-btn seo-btn-primary" href="/screener">Open live screener</a>
-          <a class="seo-btn seo-btn-secondary" href="/stock/${encodeURIComponent(results[0]?.ticker || 'AAPL')}">Open a stock page</a>
+          <a class="seo-btn seo-btn-secondary" href="/stock/${encodeURIComponent([...results].sort((a, b) => (b.mktCap || 0) - (a.mktCap || 0))[0]?.ticker || 'AAPL')}">View a stock</a>
         </div>
       </aside>
     </section>
@@ -642,7 +934,7 @@ export function renderScreenPage(screen, payload = {}) {
     <section class="seo-sections">
       <article class="seo-card seo-section">
         <h2>Current Results</h2>
-        <p>The table below links directly into stock detail pages, giving Google and users real crawlable depth instead of thin filter combinations.</p>
+        <p>Click any ticker to open the full stock detail page with financials, valuation history, and more.</p>
         <div style="overflow:auto">
           <table class="seo-table">
             <thead>
@@ -708,18 +1000,18 @@ export function renderStocksHub() {
     </nav>
     <section class="seo-hero">
       <article class="seo-card seo-hero-main">
-        <div class="seo-kicker">Programmatic stock screens</div>
+        <div class="seo-kicker">Curated stock screens</div>
         <h1>US Stock Screener Pages</h1>
-        <p>These crawlable stock screener pages are rendered on Cloudflare Pages Functions and refreshed from your Worker-backed stock dataset. Only curated, high-signal pages are published so the SEO layer stays useful instead of turning into thin filter spam.</p>
+        <p>Explore curated screens across the US stock universe — quality, value, income, and sector filters, each backed by live fundamental data. Every page links directly to individual stock profiles so you can dig deeper instantly.</p>
         <div class="seo-badges">
-          <span>${SCREEN_PAGES.length} curated long-tail pages</span>
-          <span>Cloudflare Pages Functions</span>
-          <span>US stock universe focus</span>
+          <span>${SCREEN_PAGES.length} curated screens</span>
+          <span>Live fundamental data</span>
+          <span>NYSE &amp; NASDAQ universe</span>
         </div>
       </article>
       <aside class="seo-card seo-hero-side">
-        <div class="seo-kicker">SEO guardrails</div>
-        <p>This hub intentionally links only to pages backed by real metrics already available in your backend. Unsupported combinations like RSI or breakout pages are not auto-published yet, which keeps index quality high.</p>
+        <div class="seo-kicker">Build your own screen</div>
+        <p>The screens below use preset filters. For full control — custom thresholds, additional metrics, and sorting — use the interactive screener to build your own query.</p>
         <div class="seo-cta">
           <a class="seo-btn seo-btn-primary" href="/screener">Open interactive screener</a>
         </div>
@@ -758,42 +1050,39 @@ export function renderStocksHub() {
   })
 }
 
+// renderSitemap now only covers static + screen + blog pages.
+// Stock pages (~5k) are in /sitemap-stocks.xml (dynamic, fetches all tickers from the API).
+// /sitemap.xml is now a sitemap index pointing to both.
 export function renderSitemap() {
   const now = new Date().toISOString().split('T')[0]
   const staticUrls = [
     { loc: `${SITE_ORIGIN}/`, changefreq: 'daily', priority: '1.0' },
     { loc: `${SITE_ORIGIN}/screener`, changefreq: 'weekly', priority: '0.9' },
     { loc: `${SITE_ORIGIN}/stocks`, changefreq: 'weekly', priority: '0.8' },
+    { loc: `${SITE_ORIGIN}/pricing`, changefreq: 'monthly', priority: '0.5' },
   ]
   const screenUrls = SCREEN_PAGES.map(screen => ({
     loc: `${SITE_ORIGIN}/stocks/${screen.slug}`,
     changefreq: 'daily',
     priority: '0.7',
   }))
+  // Derived from the single BLOG_POSTS source of truth so the sitemap and the
+  // live /blog index can never drift apart again.
   const blogUrls = [
     { loc: `${SITE_ORIGIN}/blog`, changefreq: 'weekly', priority: '0.7' },
-    { loc: `${SITE_ORIGIN}/blog/nasdaq-vs-nyse-stock-screening`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/nyse-vs-nasdaq-stock-picking`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/how-to-screen-tech-stocks-for-value-2026`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/how-to-screen-tech-stocks-for-value`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/what-is-roe-in-stocks`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/best-dividend-stock-screening-criteria`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/debt-to-equity-ratio-explained`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/what-is-roa-in-stocks`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/how-to-build-a-stock-screen`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/high-roe-semiconductor-stocks`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/low-debt-stocks-investing-guide`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/nasdaq-high-roe-stocks-guide`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/roe-and-debt-screening-strategy`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/how-to-read-a-balance-sheet-stocks`, changefreq: 'monthly', priority: '0.6' },
-    { loc: `${SITE_ORIGIN}/blog/high-roe-low-debt-stocks`, changefreq: 'monthly', priority: '0.6' },
+    ...BLOG_POSTS.map(post => ({
+      loc: `${SITE_ORIGIN}/blog/${post.slug}`,
+      lastmod: post.published_at,
+      changefreq: 'monthly',
+      priority: '0.6',
+    })),
   ]
   const allUrls = [...staticUrls, ...screenUrls, ...blogUrls]
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allUrls.map(u => `  <url>
     <loc>${u.loc}</loc>
-    <lastmod>${now}</lastmod>
+    <lastmod>${u.lastmod || now}</lastmod>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>
   </url>`).join('\n')}

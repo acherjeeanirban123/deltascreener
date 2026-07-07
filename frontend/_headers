@@ -1,0 +1,44 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://www.googletagmanager.com https://www.google-analytics.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.deltascreener.com https://screenerpro1-api.acherjeeanirban.workers.dev https://www.google-analytics.com https://accounts.google.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'
+
+# Immutable cache for versioned static assets
+/src/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/src/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Long cache for images and fonts
+/*.png
+  Cache-Control: public, max-age=2592000
+
+/*.svg
+  Cache-Control: public, max-age=2592000
+
+/*.webmanifest
+  Cache-Control: public, max-age=86400
+
+# Redirected duplicate blog pages — no-cache so 301s are never stale
+/blog/how-to-screen-tech-stocks-for-value-2026
+  Cache-Control: no-store
+
+/blog/nasdaq-vs-nyse-stock-screening
+  Cache-Control: no-store
+
+# Robots and sitemap — short cache so updates land quickly
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
+/sitemap-pages.xml
+  Cache-Control: public, max-age=3600
+
+/sitemap-stocks.xml
+  Cache-Control: public, max-age=3600

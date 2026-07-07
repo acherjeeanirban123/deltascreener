@@ -63,15 +63,15 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">Debt-to-Equity Ratio</li>
         </ol>
       </nav>
 
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Balance Sheet</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Balance Sheet</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">Debt-to-Equity Ratio Explained: Why the Balance Sheet Matters for Stock Pickers</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -100,7 +100,7 @@ export async function onRequestGet() {
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">Two useful metrics to pair with D/E are the <strong>interest coverage ratio</strong> (EBIT divided by interest expense — above 3x is generally safe) and <strong>free cash flow</strong>. A company with high debt but strong, consistent free cash flow is in a very different position from one that is cash-flow negative.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;color:#111827;margin:40px 0 14px">How to Screen for Low-Debt Stocks on DeltaScreener</h2>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/stocks/low-debt-stocks" style="color:#0f766e;font-weight:600;text-decoration:none">screen for low debt-to-equity stocks on DeltaScreener</a> using the balance sheet filters in the free screener. A simple, effective starting screen might look like this:</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">You can <a href="/stocks/low-debt-stocks" style="color:#2563eb;font-weight:600;text-decoration:none">screen for low debt-to-equity stocks on DeltaScreener</a> using the balance sheet filters in the free screener. A simple, effective starting screen might look like this:</p>
       <ul style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 20px;padding-left:24px">
         <li style="margin-bottom:8px">Debt/Equity &lt; 0.5</li>
         <li style="margin-bottom:8px">ROE &gt; 12%</li>
@@ -108,29 +108,29 @@ export async function onRequestGet() {
         <li style="margin-bottom:8px">Market Cap &gt; $500M</li>
       </ul>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">This combination targets companies that are both financially conservative <em>and</em> profitable — not just companies that happen to have no debt because they cannot borrow. Adding a sector filter lets you compare only within your chosen industry, making the D/E signal much more meaningful.</p>
-      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">No sign-up required. You can run and save screens instantly on the <a href="/screener" style="color:#0f766e;font-weight:600;text-decoration:none">DeltaScreener free screener</a>.</p>
+      <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">No sign-up required. You can run and save screens instantly on the <a href="/screener" style="color:#2563eb;font-weight:600;text-decoration:none">DeltaScreener free screener</a>.</p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;line-height:1.2;letter-spacing:-.03em;color:#111827;margin:40px 0 14px">Frequently Asked Questions</h2>
 
-      <div style="border-left:3px solid #0f766e;padding-left:18px;margin-bottom:24px">
+      <div style="border-left:3px solid #2563eb;padding-left:18px;margin-bottom:24px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">What is a good debt-to-equity ratio?</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">A D/E ratio below 1.0 is generally considered conservative and low-risk. Between 1.0 and 2.0 is acceptable for most industries. Above 2.0 warrants closer scrutiny, though capital-intensive sectors like utilities routinely carry higher ratios. The S&P 500 average D/E ratio was 0.61 as of Q4 2024.</p>
       </div>
 
-      <div style="border-left:3px solid #0f766e;padding-left:18px;margin-bottom:24px">
+      <div style="border-left:3px solid #2563eb;padding-left:18px;margin-bottom:24px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">Does a high debt-to-equity ratio mean a stock is bad?</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Not necessarily. Context matters enormously. A utility company with a D/E of 2.5 is operating normally for its sector; a software firm with the same ratio would raise red flags. Always compare D/E ratios within the same industry and check whether the company generates enough cash flow to service its debt comfortably.</p>
       </div>
 
-      <div style="border-left:3px solid #0f766e;padding-left:18px;margin-bottom:40px">
+      <div style="border-left:3px solid #2563eb;padding-left:18px;margin-bottom:40px">
         <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 8px">How do I find stocks with low debt-to-equity ratios?</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0">Use DeltaScreener's free screener at deltascreener.com/screener. Set a maximum D/E filter and combine it with profitability metrics like ROE or net margin to find financially strong companies.</p>
       </div>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for low-debt stocks using the exact filters described above — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

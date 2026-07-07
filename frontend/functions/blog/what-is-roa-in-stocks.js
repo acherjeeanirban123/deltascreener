@@ -63,14 +63,14 @@ export async function onRequestGet() {
     <main style="max-width:760px;margin:0 auto;padding:40px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <nav aria-label="Breadcrumb" style="margin-bottom:20px">
         <ol style="list-style:none;padding:0;margin:0;display:flex;gap:6px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5c6774">
-          <li><a href="/" style="color:#0f766e;text-decoration:none">Home</a></li>
+          <li><a href="/" style="color:#2563eb;text-decoration:none">Home</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
-          <li><a href="/blog" style="color:#0f766e;text-decoration:none">Blog</a></li>
+          <li><a href="/blog" style="color:#2563eb;text-decoration:none">Blog</a></li>
           <li aria-hidden="true" style="color:#9ca3af">/</li>
           <li aria-current="page" style="color:#374151">What Is ROA?</li>
         </ol>
       </nav>
-      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;margin-bottom:10px">Stock Quality</div>
+      <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">Stock Quality</div>
       <h1 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:clamp(28px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin:0 0 16px;color:#111827">What Is ROA in Stocks? Return on Assets Explained for Investors</h1>
       <p style="color:#6b7280;font-size:14px;margin:0 0 32px">By DeltaScreener · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -130,7 +130,7 @@ export async function onRequestGet() {
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;color:#111827;margin:40px 0 16px">How to Screen for High-ROA Stocks on DeltaScreener</h2>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">
-        You can <a href="/stocks/high-roa-stocks" style="color:#0f766e;font-weight:600">screen for high ROA stocks on DeltaScreener</a> using the ROA filter in the free screener. A practical starting setup for quality-focused investors:
+        You can <a href="/stocks/high-roa-stocks" style="color:#2563eb;font-weight:600">screen for high ROA stocks on DeltaScreener</a> using the ROA filter in the free screener. A practical starting setup for quality-focused investors:
       </p>
       <ul style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 20px;padding-left:24px">
         <li style="margin-bottom:8px">ROA ≥ 10% (filters for efficient asset use)</li>
@@ -139,7 +139,7 @@ export async function onRequestGet() {
         <li style="margin-bottom:8px">Market cap ≥ $500M (filters for established businesses)</li>
       </ul>
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 16px">
-        This combination tends to surface companies with real competitive advantages rather than those simply operating with high leverage. No sign-up required — filters update in real time on the <a href="/screener" style="color:#0f766e;font-weight:600">DeltaScreener free screener</a>.
+        This combination tends to surface companies with real competitive advantages rather than those simply operating with high leverage. No sign-up required — filters update in real time on the <a href="/screener" style="color:#2563eb;font-weight:600">DeltaScreener free screener</a>.
       </p>
 
       <h2 style="font-family:'IBM Plex Serif',Georgia,serif;font-size:26px;letter-spacing:-.03em;color:#111827;margin:40px 0 16px">Frequently Asked Questions</h2>
@@ -160,13 +160,13 @@ export async function onRequestGet() {
       </p>
 
       <p style="font-size:16px;line-height:1.75;color:#374151;margin:0 0 32px">
-        ROA is one of the most reliable filters for finding companies that genuinely earn their keep. Pair it with low leverage and consistent net margins, and you have a solid foundation for a quality-first investment screen. Head to the <a href="/screener" style="color:#0f766e;font-weight:600">DeltaScreener free screener</a> to run your own filters — no account needed.
+        ROA is one of the most reliable filters for finding companies that genuinely earn their keep. Pair it with low leverage and consistent net margins, and you have a solid foundation for a quality-first investment screen. Head to the <a href="/screener" style="color:#2563eb;font-weight:600">DeltaScreener free screener</a> to run your own filters — no account needed.
       </p>
 
       <div style="margin-top:40px;padding:20px 24px;border-radius:16px;background:#eef8f5;border:1px solid rgba(15,118,110,.15)">
-        <strong style="display:block;font-size:15px;color:#0f766e;margin-bottom:8px">Try it on DeltaScreener</strong>
+        <strong style="display:block;font-size:15px;color:#2563eb;margin-bottom:8px">Try it on DeltaScreener</strong>
         <p style="margin:0 0 12px;color:#374151;line-height:1.7;font-size:14px">Screen for high-ROA stocks using these exact criteria — free, no sign-up required.</p>
-        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
+        <a href="/screener" style="display:inline-flex;padding:10px 16px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;font-size:14px">Open Free Screener →</a>
       </div>
     </main>`
 

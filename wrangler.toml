@@ -1,0 +1,23 @@
+name = "screenerpro1-api"
+main = "worker-d1-upload.js"
+compatibility_date = "2024-01-01"
+account_id = "2c46b2a79ec379ad9e5d58836b0566ef"
+
+# Runs the scheduled() maintenance handler: refreshes quotes + fundamentals in
+# small batches and stores all overview fields (52-wk high/low, beta, avg volume,
+# shares outstanding) into D1, so user page views read from D1 and never fire FMP.
+# Workers Paid: every 1 min. Each run stays <300 FMP calls/min (Starter limit):
+#   ~100 quotes (hourly full-universe), ~10 top-500 fundamentals (daily),
+#   ~6 rest fundamentals (<2-day). Runs finish in <55s so minute-runs don't overlap.
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deltascreener-blog"
+database_id = "2b230de0-6328-4e6b-88c1-6464a51f6a99"
+
+[[d1_databases]]
+binding = "SP_DB"
+database_name = "spdb"
+database_id = "08aead05-4787-462b-986c-01e0b8d14646"
