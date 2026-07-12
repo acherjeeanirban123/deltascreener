@@ -1727,3 +1727,182 @@ I've been building a free screener at deltascreener.com if you want to filter fo
 ### Step 7 — auto-post status
 **X/Twitter: Posted successfully.** All 3 tweets went up as a thread on @deltascreener (typing via direct-click-then-type worked this run, unlike the July 2 attempt).
 **Reddit: Not submitted.** Title and body were typed into the r/stocks submit form, but Reddit's own rule-checker flagged the post with "Your post may break these r/stocks rules — Rule 2: No spam or self-promotion" before submission. Chose not to force through with "Submit without editing" to avoid moderation/ban risk. The draft text above is ready to review and post manually if you'd like — consider trimming the DeltaScreener mention further if you want it to clear the auto-check.
+
+---
+
+## July 8, 2026 — OTC Stocks vs NYSE and NASDAQ (Exchange cluster)
+
+**Article:** https://deltascreener.com/blog/otc-stocks-vs-nyse-nasdaq
+
+### Twitter/X Thread
+
+**Tweet 1 (hook):**
+More individual stocks trade OTC in the US than on the NYSE and NASDAQ combined — roughly 6,500 OTC tickers vs. ~5,650 across both major exchanges. Most investors have no idea that market even exists. 🧵
+
+**Tweet 2 (core insight):**
+NASDAQ just raised its minimum market value of publicly held shares to $15M (from $8M/$5M) and added a stricter $0.10 low-price delisting rule in Jan 2026. Rising bars push more small companies toward OTC instead of listing.
+More here: https://deltascreener.com/blog/otc-stocks-vs-nyse-nasdaq
+
+**Tweet 3 (CTA):**
+Screen NYSE and NASDAQ stocks free on DeltaScreener 👇
+
+Filter the full exchange-listed universe by valuation, quality, and debt — no sign-up.
+
+https://deltascreener.com/screener
+
+#StockScreener #Investing
+
+---
+
+### Reddit Post
+
+**Subreddit:** r/stocks (primary), r/investing (secondary)
+
+**Title:** There are more OTC-traded stocks than NYSE + NASDAQ combined (some numbers on why)
+
+**Body:**
+Went down a rabbit hole on OTC markets this week and the scale surprised me. NASDAQ carries about 3,450 listings and NYSE around 2,200 — a combined 5,650. OTC markets host nearly 6,500 tickers, so more individual stocks trade OTC than on both major exchanges put together.
+
+Part of why: exchange listing bars keep rising. NASDAQ just bumped its minimum market value of publicly held shares to $15M for new listings (up from $8M/$5M depending on tier), and added a stricter rule where a $0.10-or-under closing price for 10 straight days now triggers accelerated delisting. NYSE American is proposing a $4 minimum share price for new listings too. Fewer small/early-stage companies can clear those bars, so OTC becomes the default landing spot.
+
+Worth knowing OTC isn't one bucket — OTCQX requires audited financials and real reporting, OTCQB is venture-stage with current reporting, and Pink can have almost no reporting requirements at all. Treating "OTC" as a single risk category is a mistake; the tier matters a lot.
+
+I've been building a free screener at deltascreener.com if you want to filter to just NYSE/NASDAQ-listed names and skip the OTC noise entirely.
+
+### Step 7 — auto-post status
+**Skipped.** No Chrome browser was connected to this account during this unattended run (`list_connected_browsers` returned empty), so neither X/Twitter nor Reddit posting was attempted. Drafts above are ready to copy-paste manually.
+
+---
+
+## July 9, 2026 — Price-to-Sales Ratio Explained (Valuation cluster)
+
+**Article:** https://deltascreener.com/blog/price-to-sales-ratio-explained
+
+### Twitter/X thread
+
+**Tweet 1:**
+The S&P 500 now trades at ~3.7x sales — vs a historical median of ~1.6x.
+
+Revenue is 2x+ richer than the long-run norm. When earnings are messy, the price-to-sales ratio is often the cleaner way to spot value. 🧵
+
+**Tweet 2:**
+Why P/S beats P/E in tricky spots:
+
+Revenue rarely goes negative and is much harder to fudge than earnings. That makes P/S the go-to for early-stage growth, cyclical downturns, and turnarounds — cases where P/E is useless.
+
+More: https://deltascreener.com/stocks/low-pe-stocks
+
+**Tweet 3:**
+The catch: a dollar of sales isn't equal everywhere. Always pair P/S with net margin + debt, and compare within the same industry.
+
+Screen for cheaply valued stocks free on DeltaScreener 👇
+https://deltascreener.com/screener
+#stocks #investing
+
+### Reddit post
+
+**Subreddit:** r/stocks (primary), r/investing (secondary)
+
+**Title:** Quick breakdown of the price-to-sales ratio as a screen filter (+ some data)
+
+**Body:**
+Been going down the valuation-metrics rabbit hole and figured I'd share a few notes on the price-to-sales ratio, since it gets overlooked next to P/E.
+
+The reason P/S is handy: it works when P/E doesn't. Revenue sits at the top of the income statement, rarely turns negative, and is much harder to manipulate than net income. So for early-stage growth names, cyclicals in a down year, or turnarounds with one-off losses, P/S still gives you a usable number when the P/E is meaningless.
+
+For context, the S&P 500 is trading around 3.7x sales right now, versus a long-run average near 2.5x and a historical median around 1.6x — so the broad market is pretty richly priced against revenue.
+
+The big caveat: P/S ignores profitability and debt. A dollar of software revenue is worth way more than a dollar of grocery revenue, so a "low" P/S at an unprofitable company can be a trap. I only use it alongside net margin and debt-to-equity, and always compare within the same industry.
+
+I've been building a free screener at deltascreener.com if you want to run this filter yourself.
+
+---
+
+## 2026-07-09 — What Is ROIC in Stocks? (Quality)
+
+### Twitter/X thread
+
+**Tweet 1:**
+A fast-growing company can still be a terrible investment.
+
+If it earns less on new projects than it pays to fund them (ROIC < WACC), every dollar of growth destroys value.
+
+Return on invested capital is the metric that catches this. 🧵
+
+**Tweet 2:**
+ROIC = after-tax operating profit ÷ all invested capital (debt + equity).
+
+Unlike ROE, it can't be flattered by borrowing. The S&P 500 averages ~11–12%. Sustained 15%+ usually means a real moat.
+
+Quality screens start here 👉 https://deltascreener.com/stocks/high-roe-stocks
+
+**Tweet 3:**
+The test that matters: ROIC must beat the company's cost of capital. That gap is what separates compounders from value destroyers.
+
+Screen for high-quality, capital-efficient stocks free on DeltaScreener 👇
+https://deltascreener.com/screener
+#stocks #investing
+
+### Reddit post
+
+**Subreddit:** r/stocks (primary), r/investing (secondary)
+
+**Title:** Why ROIC beats ROE as a quality filter (and why it has to clear WACC)
+
+**Body:**
+I've been leaning more on ROIC lately instead of ROE and wanted to share why, in case it's useful to anyone building screens.
+
+The problem with ROE is leverage. A company can post a gorgeous 30% ROE simply by loading up on debt, because equity is the only thing in the denominator. ROIC fixes that by measuring after-tax operating profit against ALL invested capital — debt and equity together. It's a much cleaner read on how good the underlying business actually is.
+
+The part people skip: ROIC only means something relative to the cost of capital (WACC). If a company earns 8% ROIC but its capital costs 10%, growth is actively destroying value — even if revenue is climbing. When ROIC comfortably clears WACC, reinvestment compounds wealth. That spread is basically the definition of a quality business.
+
+For reference, the S&P 500 averages around 11–12% ROIC, so I treat sustained 15%+ (through a full cycle, not one lucky year) as the bar for a real moat.
+
+I've been building a free screener at deltascreener.com if you want to run a quality filter yourself.
+
+---
+
+## July 12, 2026 — How to Screen Utility Stocks for Steady Dividends (Sector cluster)
+
+**Article:** https://deltascreener.com/blog/how-to-screen-utility-stocks
+**Screener page:** https://deltascreener.com/stocks/dividend-stocks
+
+### Twitter/X thread (3 tweets)
+
+**Tweet 1:**
+The S&P 500 utilities sector yields ~3.1% right now — but the highest-yielding utility isn't the best one to own.
+
+In a sector built on debt, a fat yield is often a warning, not a gift. Here's what to screen for instead 🧵
+
+**Tweet 2:**
+Utilities run heavy debt by design — they fund power plants and grids paid back over decades. So skip the raw debt-to-equity cutoff and check:
+
+• Payout ratio under ~75%
+• Interest coverage 2.5x+
+• Steady, positive earnings
+
+Income names: https://deltascreener.com/stocks/dividend-stocks
+
+**Tweet 3:**
+Bonus tailwind: data-center demand is pushing US utility capex toward a record $1.3T for 2026–2030. Growth + income in one boring sector.
+
+Screen for dividend & utility stocks free on DeltaScreener 👇
+https://deltascreener.com/screener
+#dividends #investing
+
+### Reddit post
+
+**Subreddit:** r/stocks (primary), r/investing (secondary)
+
+**Title:** How I screen utility stocks — why the highest yield is usually the wrong pick
+
+**Body:**
+Utilities get treated as a "buy it for the yield and forget it" sector, but I think the screen matters more here than almost anywhere else, so wanted to share how I filter them.
+
+The core mistake is reaching for the biggest yield. The S&P 500 utilities sector yields around 3.1% right now, so when you see a regulated utility yielding 6%+, the market is usually pricing in a dividend cut, not handing you free income. Yield is a starting point, not the answer.
+
+The other trap is a normal debt filter. Utilities carry huge debt on purpose — they finance power plants and transmission over decades, backed by predictable regulated revenue. A strict debt-to-equity cutoff throws out perfectly healthy companies. Instead I look at interest coverage (can operating income comfortably cover interest, ~2.5x+) and payout ratio (under ~75% leaves a cushion).
+
+One thing that's actually changed lately: data-center electricity demand has pushed aggregate US utility capex toward a record ~$1.3T for 2026–2030, so there's more growth in this "boring" sector than usual — but also more borrowing, which makes balance-sheet screening more relevant, not less.
+
+I've been building a free screener at deltascreener.com if you want to run a dividend + quality filter yourself.

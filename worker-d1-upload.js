@@ -8,12 +8,12 @@ const CORS = {
 const UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
 const SECU = 'DeltaScreener contact@deltascreener.com'
 const DEFAULT_GOOGLE_CLIENT_ID = '1062200569141-0vik7idoi4skecsh8dii6nksmg80afrv.apps.googleusercontent.com'
-const DATA_VERSION = '20.96-subrequest-budget'
+const DATA_VERSION = '20.98-fund-budget-cap'
 const STOCK_STALE_DAYS = 30
 const FUNDAMENTAL_STALE_DAYS = 2
 const QUOTE_STALE_DAYS = 1
 const QUOTE_STALE_HOURS = 1
-const QUOTE_STALE_REST_MINUTES = 30
+const QUOTE_STALE_REST_MINUTES = 120
 const QUOTE_TOP_STALE_MINUTES = 10
 const TOP_FINANCIAL_STALE_DAYS = 1
 const INCOMPLETE_FUNDAMENTAL_RETRY_DAYS = 1
@@ -22,16 +22,20 @@ const SYMBOL_REFRESH_DAYS = 1
 const MAX_QUOTE_REFRESH_LIMIT = 210
 const MAX_DEEP_REFRESH_LIMIT = 1000
 // Tuned for Cloudflare Workers Paid plan + FMP Starter (300 calls/min, no daily cap).
-// Target ceiling = 75% of limit = 225 calls/min, leaving headroom for future features.
+// Target ceiling = 80% of limit = 240 calls/min. Batch quote endpoints are 402/restricted
+// on Starter, so quotes stay 1-call-each; instead we cut quote demand (rest staleness
+// 30min -> 120min) and hand the freed budget + runtime to fundamentals.
 // Each quote = 1 FMP call; each fundamental refresh = ~6 calls. Per-minute peak budget:
-//   190 quotes + 2 top-fund (~12) + 3 rest-fund (~18) ~= 220 calls/min (< 225 = 75%).
-// Quote demand: top-500 every 10min (3,000/hr) + ~4,400 rest every 30min (8,800/hr)
-//   = ~11,800/hr ~= 197/min avg-at-boundary; spread out it's lower, 190/min clears it.
-// Fund throughput: top 2/min = 2,880/day (>= 500 daily), rest 3/min = 4,320/day
-//   (>= ~2,200/day needed for ~4,400 on a 2-day window).
-const SCHEDULED_QUOTE_LIMIT = 190
-const SCHEDULED_TOP_LIMIT = 2
-const SCHEDULED_REST_LIMIT = 3
+//   85 quotes + 6 top-fund (~36) + 14 rest-fund (~84) + ~35 head-backfill ~= 240 (80%).
+// Quote demand: top-500 every 10min (3,000/hr = 50/min) + ~4,400 rest every 120min
+//   (2,200/hr = 37/min) = ~87/min; SCHEDULED_QUOTE_LIMIT 85 clears it at steady state.
+// Fund throughput: 20/min = ~28,800/day, so a full stale cycle clears in ~3-3.5h.
+const SCHEDULED_QUOTE_LIMIT = 85
+const SCHEDULED_TOP_LIMIT = 6
+const SCHEDULED_REST_LIMIT = 14
+// Hard ceiling on total FMP calls per scheduled run (~80% of Starter 300/min). Quotes +
+// fundamentals get first claim; the profile/description backfills only spend what's left.
+const SCHEDULED_FMP_CALL_BUDGET = 240
 const SCHEDULED_CORE_RATIO_LIMIT = 8
 const SCHEDULED_RICH_CORE_RATIO_LIMIT = 4
 const SCHEDULED_QUOTE_MAX_BATCHES = 1
@@ -43,18 +47,27 @@ const QUOTE_REFRESH_SAFE_INVOCATION_LIMIT = 210
 const SCHEDULED_LOCK_MINUTES = 2
 const SCHEDULED_MAX_RUNTIME_MS = (55 * 1000)
 const SCHEDULED_FINALIZE_BUFFER_MS = 6_000
-const SCHEDULED_QUOTE_STAGE_MAX_MS = 35_000
-const SCHEDULED_TOP_STAGE_MAX_MS = 12_000
-const SCHEDULED_REST_STAGE_MAX_MS = 10_000
+const SCHEDULED_QUOTE_STAGE_MAX_MS = 16_000
+const SCHEDULED_TOP_STAGE_MAX_MS = 14_000
+const SCHEDULED_REST_STAGE_MAX_MS = 26_000
 const SCHEDULED_MANUAL_CLEAR_MIN_MS = 2 * 60 * 1000
+// Returns-freshness pass: the cron's fundamental staleness lives in queryable columns,
+// but returnsAsOf is buried inside the ratios JSON blob so the deep-stale SQL can't see
+// it. Complete large-caps therefore keep serving weeks-old return% even though price is
+// fresh. This rotating pass walks the top market caps by cursor and recomputes returns
+// (Yahoo only, no FMP budget) whenever returnsAsOf is older than the max age.
+const RETURNS_REFRESH_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000  // match getStockData's 3-day window
+const RETURNS_REFRESH_POOL = 6000                           // sweep the full active universe (~5.4k), headroom for growth
+const RETURNS_REFRESH_BATCH = 15                            // tickers scanned per cron tick (~6.7h/full sweep)
+const RETURNS_REFRESH_STAGE_MAX_MS = 12_000                 // wall-clock cap for the pass
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000
 const FMP_RETRY_BASE_MS = 350
 const FMP_QUOTE_BATCH_PAUSE_MS = 75
 const GET_OR_BUILD_TIMEOUT_MS = 20_000
 const SEC_FETCH_TIMEOUT_MS = 12_000
-const QUOTE_REFRESH_CONCURRENCY = 6
-const TOP_REFRESH_CONCURRENCY = 4
-const DEEP_REFRESH_CONCURRENCY = 4
+const QUOTE_REFRESH_CONCURRENCY = 8
+const TOP_REFRESH_CONCURRENCY = 8
+const DEEP_REFRESH_CONCURRENCY = 8
 const CHART_CACHE_VERSION = 2
 const QUOTE_MISSING_RETRY_HOURS = 2
 const SLOW_BUILD_LOG_MS = 4000
@@ -1468,6 +1481,13 @@ function resetApiStats(env) {
 function apiStatsSnapshot(env) {
   return { ...apiStats(env) }
 }
+// Hard per-run FMP call budget guard. The scheduler resets apiStats at the start of
+// every run, so apiStats(env).fmpRequests is the calls-spent-this-run counter. Backfill
+// stages check fmpBudgetRemaining() so opportunistic profile/description backfills can
+// never push a run past ~80% of the FMP Starter 300/min limit (avoids 429 spikes).
+function fmpBudgetRemaining(env) {
+  return SCHEDULED_FMP_CALL_BUDGET - Number(apiStats(env).fmpRequests || 0)
+}
 function isWorkerSubrequestLimitError(message = '') {
   return /too many subrequests|single Worker invocation|subrequests by single worker/i.test(String(message || ''))
 }
@@ -2799,6 +2819,60 @@ async function backfillReturnRatios(env, ticker, existingRatios = null) {
   if (!Object.keys(patch).length) return { ok: false, skipped: true, stored: 0, stockCagr }
   await dbSaveStockSection(env, ticker, 'ratios', patch)
   return { ok: true, stored: Object.keys(patch).length, stockCagr }
+}
+
+// Rotating returns-freshness pass over the top market caps. Unlike backfillReturnRatios
+// (which only fills MISSING returns), this refreshes returns whose returnsAsOf timestamp
+// is stale — the case that leaves a complete large-cap serving a wrong-sign or weeks-old
+// return1y. Cursor persisted in app_meta; wraps once it has swept RETURNS_REFRESH_POOL.
+// Yahoo-only, so it never touches the FMP call budget.
+async function refreshTopReturns(env, opts = {}) {
+  if (!(await ensureDB(env))) return { error: 'D1 not bound' }
+  const batch = Math.min(Math.max(Number(opts.batch) || RETURNS_REFRESH_BATCH, 1), 50)
+  const deadlineMs = Number(opts.deadlineMs) || (Date.now() + RETURNS_REFRESH_STAGE_MAX_MS)
+  const cursorMeta = await dbMetaGet(env, 'returns_refresh_cursor').catch(() => null)
+  let offset = Number(cursorMeta?.offset || 0)
+  if (!Number.isFinite(offset) || offset < 0 || offset >= RETURNS_REFRESH_POOL) offset = 0
+  const rows = await dbAll(env, `SELECT ticker, ratios FROM stock_data
+    WHERE mkt_cap IS NOT NULL AND mkt_cap > 0
+    ORDER BY mkt_cap DESC
+    LIMIT ? OFFSET ?`, [batch, offset]).catch(() => [])
+  // Advance (and wrap) the cursor up front so a mid-run timeout still makes progress next tick.
+  let nextOffset = offset + rows.length
+  if (rows.length < batch || nextOffset >= RETURNS_REFRESH_POOL) nextOffset = 0
+  await dbMetaSet(env, 'returns_refresh_cursor', { offset: nextOffset, updatedAt: new Date().toISOString() }).catch(() => {})
+
+  let scanned = 0, refreshed = 0, freshSkipped = 0, failed = 0
+  for (const row of rows) {
+    if (Date.now() >= deadlineMs) break
+    scanned++
+    const ratios = parseJson(row.ratios) || {}
+    const asOf = ratios.returnsAsOf ? Date.parse(ratios.returnsAsOf) : 0
+    const stale = !asOf || !Number.isFinite(asOf) || (Date.now() - asOf) > RETURNS_REFRESH_MAX_AGE_MS
+    if (!stale) { freshSkipped++; continue }
+    try {
+      const returns = await computeReturns(row.ticker)
+      const patch = {}
+      for (const key of RETURN_RATIO_KEYS) {
+        const value = n(returns?.[key])
+        if (value != null && isFinite(value)) patch[key] = r2(value)
+      }
+      const r10 = n(returns?.return10y)
+      if (r10 != null && isFinite(r10)) patch.return10y = r2(r10)
+      if (Object.keys(patch).length) {
+        patch.returnsAsOf = new Date().toISOString()
+        await dbSaveStockSection(env, row.ticker, 'ratios', patch)
+        refreshed++
+      } else {
+        failed++
+      }
+    } catch {
+      failed++
+    }
+  }
+  const meta = { ts: new Date().toISOString(), offset, nextOffset, pool: RETURNS_REFRESH_POOL, scanned, refreshed, freshSkipped, failed }
+  await dbMetaSet(env, 'last_returns_refresh', meta).catch(() => {})
+  return { ok: true, ...meta }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -6198,6 +6272,9 @@ async function runScheduledMaintenance(env) {
     const runStageOnce = async (key, round) => {
       const state = stageState[key]
       if (!state || state.done || state.runs >= state.maxRuns || !hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) return false
+      // Global per-run FMP call budget: stop pulling in new stage batches once the
+      // budget is spent so post-round backfill + retries never push us past FMP's limit.
+      if (fmpBudgetRemaining(env) <= 0) return false
       const stageDeadlineMs = Math.min(
         deadlineMs - SCHEDULED_FINALIZE_BUFFER_MS,
         Date.now() + Math.max(10_000, Number(state.maxStageMs) || 0)
@@ -6235,8 +6312,9 @@ async function runScheduledMaintenance(env) {
     // even minutes → description backfill, odd minutes → FMP-fields backfill.
     let descriptionBackfill = { skipped: 'no_time' }
     let fmpFieldsBackfill = { skipped: 'no_time' }
+    let returnsRefresh = { skipped: 'no_time' }
     try {
-      if (hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+      if (hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS) && fmpBudgetRemaining(env) >= 40) {
         if (new Date().getMinutes() % 2 === 0) {
           const res = await backfillDescriptions(env, 30, 40).catch(e => ({ error: e?.message || String(e) }))
           descriptionBackfill = res?.error
@@ -6245,11 +6323,11 @@ async function runScheduledMaintenance(env) {
         } else {
           const cursorMeta = await dbMetaGet(env, 'fmp_fields_backfill_cursor').catch(() => null)
           let offset = Number(cursorMeta?.offset || 0)
-          const res = await patchFmpFields(env, 60, offset).catch(e => ({ error: e?.message || String(e) }))
+          const res = await patchFmpFields(env, 40, offset).catch(e => ({ error: e?.message || String(e) }))
           if (res?.error) fmpFieldsBackfill = { error: res.error, offset }
           else {
-            const exhausted = Number(res?.total || 0) < 60
-            offset = exhausted ? 0 : Number(res?.offset_next || (offset + 60))
+            const exhausted = Number(res?.total || 0) < 40
+            offset = exhausted ? 0 : Number(res?.offset_next || (offset + 40))
             await dbMetaSet(env, 'fmp_fields_backfill_cursor', { offset, updatedAt: new Date().toISOString() }).catch(() => {})
             fmpFieldsBackfill = { patched: Number(res?.patched || 0), runs: 1, nextOffset: offset, exhausted, slot: 'head' }
           }
@@ -6271,14 +6349,14 @@ async function runScheduledMaintenance(env) {
     // and never fire a live FMP profile fetch. Cursor persisted in app_meta; resets to
     // the start once a full pass finds nothing left to patch.
     try {
-      if (fmpFieldsBackfill.slot !== 'head' && !fmpFieldsBackfill.error && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
+      if (fmpFieldsBackfill.slot !== 'head' && !fmpFieldsBackfill.error && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS) && fmpBudgetRemaining(env) >= 50) {
         const cursorMeta = await dbMetaGet(env, 'fmp_fields_backfill_cursor').catch(() => null)
         let offset = Number(cursorMeta?.offset || 0)
-        const BACKFILL_LIMIT = 150
-        const MAX_BACKFILL_RUNS = 4
+        const BACKFILL_LIMIT = 50
+        const MAX_BACKFILL_RUNS = 1
         let totalPatched = 0, runs = 0, exhausted = false
-        for (let r = 0; r < MAX_BACKFILL_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS); r++) {
-          const res = await patchFmpFields(env, BACKFILL_LIMIT, offset).catch(e => ({ error: e?.message || String(e) }))
+        for (let r = 0; r < MAX_BACKFILL_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS) && fmpBudgetRemaining(env) >= BACKFILL_LIMIT; r++) {
+          const res = await patchFmpFields(env, Math.min(BACKFILL_LIMIT, fmpBudgetRemaining(env)), offset).catch(e => ({ error: e?.message || String(e) }))
           runs++
           if (res?.error) { fmpFieldsBackfill = { error: res.error, offset }; break }
           totalPatched += Number(res?.patched || 0)
@@ -6300,13 +6378,13 @@ async function runScheduledMaintenance(env) {
     // persist into D1 so every ticker keeps its best-available text. Small per-run limit
     // so it never spikes the FMP budget; re-runs each cron tick until the backlog clears.
     try {
-      if (descriptionBackfill.slot !== 'head' && !descriptionBackfill.error && !descriptionBackfill.cleared && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS)) {
-        const DESC_LIMIT = 40
+      if (descriptionBackfill.slot !== 'head' && !descriptionBackfill.error && !descriptionBackfill.cleared && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS) && fmpBudgetRemaining(env) >= 20) {
+        const DESC_LIMIT = 20
         const DESC_MIN_WORDS = 40
-        const MAX_DESC_RUNS = 3
+        const MAX_DESC_RUNS = 1
         let totalFilled = 0, totalScanned = 0, runs = 0, cleared = false
-        for (let r = 0; r < MAX_DESC_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS); r++) {
-          const res = await backfillDescriptions(env, DESC_LIMIT, DESC_MIN_WORDS).catch(e => ({ error: e?.message || String(e) }))
+        for (let r = 0; r < MAX_DESC_RUNS && hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS) && fmpBudgetRemaining(env) >= DESC_LIMIT; r++) {
+          const res = await backfillDescriptions(env, Math.min(DESC_LIMIT, fmpBudgetRemaining(env)), DESC_MIN_WORDS).catch(e => ({ error: e?.message || String(e) }))
           runs++
           if (res?.error) { descriptionBackfill = { error: res.error }; break }
           totalFilled += Number(res?.filled || 0)
@@ -6319,6 +6397,21 @@ async function runScheduledMaintenance(env) {
       }
     } catch (e) {
       descriptionBackfill = { error: e?.message || String(e) }
+    }
+    // Returns-freshness pass: rotate through the top market caps and recompute any whose
+    // cached returns have gone stale. Yahoo-only (no FMP budget), so it's gated on time
+    // alone. Small batch per tick; the cursor wraps once the top pool has been swept.
+    try {
+      if (hasTimeForStage(SCHEDULED_FINALIZE_BUFFER_MS + RETURNS_REFRESH_STAGE_MAX_MS)) {
+        const returnsDeadline = Math.min(
+          deadlineMs - SCHEDULED_FINALIZE_BUFFER_MS,
+          Date.now() + RETURNS_REFRESH_STAGE_MAX_MS
+        )
+        returnsRefresh = await refreshTopReturns(env, { deadlineMs: returnsDeadline })
+          .catch(e => ({ error: e?.message || String(e) }))
+      }
+    } catch (e) {
+      returnsRefresh = { error: e?.message || String(e) }
     }
     // Alert evaluation: after fresh quotes/fundamentals are in D1, evaluate active
     // user alerts (price/pct/fundamental/screen), debounce, log events, batch emails.
@@ -6354,6 +6447,7 @@ async function runScheduledMaintenance(env) {
       rest: summarizeRefreshResult(rest),
       fmpFieldsBackfill,
       descriptionBackfill,
+      returnsRefresh,
       alerts: alertsResult,
       apiStats: apiStatsSnapshot(env),
     }
@@ -6365,6 +6459,7 @@ async function runScheduledMaintenance(env) {
       rest,
       fmpFieldsBackfill,
       descriptionBackfill,
+      returnsRefresh,
       alerts: alertsResult,
       apiStats: apiStatsSnapshot(env),
       coverage: {

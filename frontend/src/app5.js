@@ -2961,7 +2961,7 @@ function renderOwnershipTab(c, sh) {
                 <td>${h.value != null ? '$' + h.value + 'B' : '—'}</td>
                 <td>${h.pctHeld != null ? h.pctHeld + '%' : '—'}</td>
                 <td class="${h.change > 0 ? 'up' : h.change < 0 ? 'dn' : ''}">${h.change != null ? (h.change > 0 ? '+' : '') + Number(h.change).toLocaleString() : '—'}</td>
-                <td style="color:#9ca3af;font-size:12px">${h.reportDate || '—'}</td>
+                <td style="color:#9ca3af;font-size:12px">${(h.reportDate && typeof h.reportDate === 'object' ? h.reportDate.fmt : h.reportDate) || '—'}</td>
               </tr>
             `).join('')}
           </tbody>

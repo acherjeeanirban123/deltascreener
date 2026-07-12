@@ -63,6 +63,19 @@ function fmtMktCap(v) {
   return '$' + n.toFixed(0)
 }
 
+// Formats an ISO date string as "Apr 19, 2026" for the news list.
+function fmtNewsDate(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+function fmtShares(v) {
+  if (v == null || isNaN(v)) return '—'
+  return Number(v).toLocaleString('en-US')
+}
+
 function statRow(label, value) {
   return `<tr><td style="padding:10px 14px;color:#6b7280;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">${label}</td><td style="padding:10px 14px;font-weight:700;font-size:14px;color:#111827;border-bottom:1px solid #f1f5f9;text-align:right">${value}</td></tr>`
 }
@@ -422,6 +435,147 @@ function renderStockShell(ticker, overview, fin, peers, opts) {
       </div>`
   }
 
+  // Cash Flow table — same style as balanceTableHtml, last 5 years, $ millions.
+  let cashflowTableHtml = ''
+  if (fin && fin.cashflow && fin.cashflow.headers && fin.cashflow.headers.length) {
+    const c = fin.cashflow
+    const years = c.headers.slice(-5)
+    const startIdx = c.headers.length - years.length
+    const fmtNum = (arr, i) => fmtMillions(arr?.[startIdx + i])
+    const tdS = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:right;color:#111827;font-weight:600'
+    const td1S = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:left;color:#6b7280;white-space:nowrap'
+    const thSA = 'padding:9px 12px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:right'
+    const metrics = [
+      { label: 'Operating Cash Flow', arr: c.fromOperating },
+      { label: 'Investing Cash Flow', arr: c.fromInvesting },
+      { label: 'Financing Cash Flow', arr: c.fromFinancing },
+      { label: 'Net Cash Flow', arr: c.netCashFlow },
+      { label: 'Free Cash Flow', arr: c.freeCashFlow },
+    ]
+    const headerCols = years.map(y => `<th style="${thSA}">${y}</th>`).join('')
+    const bodyRows = metrics.map(m =>
+      `<tr><td style="${td1S}">${m.label}</td>${years.map((_,i) => `<td style="${tdS}">${fmtNum(m.arr, i)}</td>`).join('')}</tr>`
+    ).join('')
+    cashflowTableHtml = `
+      <div style="margin-bottom:32px">
+        <h2 style="font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin:0 0 10px">Cash Flow (USD)</h2>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+            <thead><tr><th style="${thSA};text-align:left">Metric</th>${headerCols}</tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`
+  }
+
+  // Ratios section — fields NOT already in the Financials & Margins table.
+  let ratiosTableHtml = ''
+  const ratios = opts && opts.ratios
+  if (ratios && !ratios.error) {
+    const ratioRows = [
+      statRow('PEG Ratio', fmt(ratios.peg)),
+      statRow('EV / EBITDA', fmt(ratios.evEbitda)),
+      statRow('FCF Yield', fmtPct(ratios.fcfYield)),
+      statRow('Quick Ratio', fmt(ratios.quickRatio)),
+      statRow('Interest Coverage', fmt(ratios.interestCoverage)),
+      statRow('Return 1Y', fmtPct(ratios.return1y)),
+      statRow('Return 3Y', fmtPct(ratios.return3y)),
+      statRow('Return 5Y', fmtPct(ratios.return5y)),
+    ].join('')
+    ratiosTableHtml = `
+      <div style="margin-bottom:32px">
+        <h2 style="font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin:0 0 10px">Valuation &amp; Return Ratios</h2>
+        <table style="${tableStyle}"><thead><tr><th style="${thStyle}">Metric</th><th style="${thStyle};text-align:right">Value</th></tr></thead><tbody>${ratioRows}</tbody></table>
+      </div>`
+  }
+
+  // Ownership section — ownership summary stat cards + top 5 institutional holders.
+  let ownershipHtml = ''
+  const shareholders = opts && opts.shareholders
+  if (shareholders && !shareholders.error) {
+    const own = Array.isArray(shareholders.ownership) ? shareholders.ownership : []
+    const inst = Array.isArray(shareholders.institutional) ? shareholders.institutional.slice(0, 5) : []
+    if (own.length || inst.length) {
+      const cardStyle = 'display:flex;flex-direction:column;gap:4px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)'
+      const cards = own.length
+        ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">${own.map(r => `<div style="${cardStyle}"><span style="font-size:13px;color:#6b7280">${escapeHtml(r.label)}</span><span style="font-size:20px;font-weight:900;color:#111827">${fmtPct(r.value)}</span></div>`).join('')}</div>`
+        : ''
+      let instTable = ''
+      if (inst.length) {
+        const tdS = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:right;color:#111827;font-weight:600'
+        const td1S = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:left;color:#111827;font-weight:600'
+        const thSA = 'padding:9px 12px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:right'
+        const rows = inst.map(h =>
+          `<tr><td style="${td1S}">${escapeHtml(h.name)}</td><td style="${tdS}">${fmtShares(h.shares)}</td><td style="${tdS}">${escapeHtml(h.reportDate?.fmt || '—')}</td></tr>`
+        ).join('')
+        instTable = `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+              <thead><tr><th style="${thSA};text-align:left">Institutional Holder</th><th style="${thSA}">Shares</th><th style="${thSA}">Report Date</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`
+      }
+      ownershipHtml = `
+        <div style="margin-bottom:32px">
+          <h2 style="font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin:0 0 10px">Ownership</h2>
+          ${cards}${instTable}
+        </div>`
+    }
+  }
+
+  // Latest News section — top 5 items, freshness signal (placed first below).
+  let newsHtml = ''
+  const newsData = opts && opts.news
+  const newsItems = newsData && Array.isArray(newsData.news) ? newsData.news.slice(0, 5) : []
+  if (newsItems.length) {
+    const rowStyle = 'display:block;padding:12px 0;border-bottom:1px solid #f1f5f9;text-decoration:none'
+    const items = newsItems.map(n => `
+      <a href="${escapeHtml(n.url)}" rel="nofollow noopener" target="_blank" style="${rowStyle}">
+        <span style="display:block;font-weight:700;font-size:15px;color:#111827;line-height:1.4;margin-bottom:4px">${escapeHtml(n.title)}</span>
+        <span style="font-size:13px;color:#6b7280">${escapeHtml(n.source || '')}${n.source && n.publishedDate ? ' · ' : ''}${escapeHtml(fmtNewsDate(n.publishedDate))}</span>
+      </a>`).join('')
+    newsHtml = `
+      <div style="margin-bottom:32px">
+        <h2 style="font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin:0 0 6px">Latest News</h2>
+        <div>${items}</div>
+      </div>`
+  }
+
+  // Peer Comparison table — from the dedicated /peers endpoint.
+  let peerCompareHtml = ''
+  const comparePeers = opts && Array.isArray(opts.comparePeers)
+    ? opts.comparePeers.filter(p => p && p.ticker && p.ticker !== ticker).slice(0, 8)
+    : []
+  if (comparePeers.length) {
+    const tdS = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:right;color:#111827;font-weight:600'
+    const td1S = 'padding:9px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;text-align:left'
+    const thSA = 'padding:9px 12px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:right'
+    const rows = comparePeers.map(p => {
+      const chg = p.changePct
+      const chgColor = chg != null && chg >= 0 ? '#16a34a' : '#dc2626'
+      const chgTxt = chg != null ? `${chg >= 0 ? '+' : ''}${Number(chg).toFixed(2)}%` : '—'
+      return `<tr>
+        <td style="${td1S}"><a href="/stock/${escapeHtml(p.ticker)}" style="color:#1d4ed8;font-weight:700;text-decoration:none">${escapeHtml(p.ticker)}</a><span style="display:block;font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${escapeHtml(p.name && p.name !== p.ticker ? p.name : '')}</span></td>
+        <td style="${tdS}">${fmtPrice(p.price)}</td>
+        <td style="${tdS};color:${chgColor}">${chgTxt}</td>
+        <td style="${tdS}">${fmt(p.pe)}</td>
+        <td style="${tdS}">${fmtMktCap(p.mktCap)}</td>
+        <td style="${tdS}">${fmtPct(p.dividendYield)}</td>
+      </tr>`
+    }).join('')
+    peerCompareHtml = `
+      <div style="margin-bottom:32px">
+        <h2 style="font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin:0 0 10px">Peer Comparison</h2>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+            <thead><tr><th style="${thSA};text-align:left">Ticker</th><th style="${thSA}">Price</th><th style="${thSA}">Change</th><th style="${thSA}">P/E</th><th style="${thSA}">Market Cap</th><th style="${thSA}">Div Yield</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`
+  }
+
   const bodyHtml = `
     <main style="max-width:1120px;margin:0 auto;padding:32px 16px 72px;font-family:Inter,system-ui,sans-serif">
       <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;margin-bottom:10px">${escapeHtml(o.exchange || 'Stock')} · ${escapeHtml(o.industry || 'Stock Research')}</div>
@@ -445,6 +599,11 @@ function renderStockShell(ticker, overview, fin, peers, opts) {
       </div>
       ${annualTableHtml}
       ${balanceTableHtml}
+      ${newsHtml}
+      ${cashflowTableHtml}
+      ${ratiosTableHtml}
+      ${ownershipHtml}
+      ${peerCompareHtml}
       ${renderAboutSection(ticker, displayName, o, fin)}
       ${renderRelatedBlock(ticker, o.sector, peers)}
       ${renderPopularBlock(ticker, peers)}
@@ -627,7 +786,42 @@ export async function onRequestGet(context) {
       }
     }
 
-    return renderStockShell(ticker, overview, fin, peers)
+    // Enriched-section data: ratios, shareholders, news, and dedicated peer
+    // list (separate from the screener/custom peers used for internal linking).
+    // Each has independent cache TTLs; all failures degrade gracefully to an
+    // omitted section.
+    let ratios = null, shareholders = null, news = null, comparePeers = []
+    for (const origin of API_ORIGINS) {
+      try {
+        const [ratRes, shRes, nwRes, prRes] = await Promise.all([
+          fetch(`${origin}/stock/${encodeURIComponent(ticker)}/ratios`, {
+            headers: { Accept: 'application/json', 'User-Agent': 'DeltaScreener-Pages/1.0' },
+            cf: { cacheTtl: 3600, cacheEverything: false },
+          }),
+          fetch(`${origin}/stock/${encodeURIComponent(ticker)}/shareholders`, {
+            headers: { Accept: 'application/json', 'User-Agent': 'DeltaScreener-Pages/1.0' },
+            cf: { cacheTtl: 21600, cacheEverything: false },
+          }),
+          fetch(`${origin}/stock/${encodeURIComponent(ticker)}/news`, {
+            headers: { Accept: 'application/json', 'User-Agent': 'DeltaScreener-Pages/1.0' },
+            cf: { cacheTtl: 900, cacheEverything: false },
+          }),
+          fetch(`${origin}/stock/${encodeURIComponent(ticker)}/peers`, {
+            headers: { Accept: 'application/json', 'User-Agent': 'DeltaScreener-Pages/1.0' },
+            cf: { cacheTtl: 3600, cacheEverything: false },
+          }),
+        ])
+        if (ratRes.ok || shRes.ok || nwRes.ok || prRes.ok) {
+          if (ratRes.ok) { try { ratios = await ratRes.json() } catch (_) {} }
+          if (shRes.ok) { try { shareholders = await shRes.json() } catch (_) {} }
+          if (nwRes.ok) { try { news = await nwRes.json() } catch (_) {} }
+          if (prRes.ok) { try { const pj = await prRes.json(); comparePeers = pj.peers || [] } catch (_) {} }
+          break
+        }
+      } catch (_) {}
+    }
+
+    return renderStockShell(ticker, overview, fin, peers, { ratios, shareholders, news, comparePeers })
   } catch (_) {
     // API unreachable — serve a noindex shell so a transient failure never
     // feeds Googlebot a blank-but-indexable page (which erodes crawl trust for
