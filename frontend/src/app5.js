@@ -1,4 +1,4 @@
-// v20260704-dataquality
+// v20260719-compare
 // ═══════════════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════════
@@ -145,14 +145,16 @@ const pro = {
       <div style="background:#141a26;border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:32px 30px 28px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.55);position:relative">
         <button id="ds-pro-modal-close" style="position:absolute;top:16px;right:18px;background:none;border:none;color:#6b7280;font-size:20px;cursor:pointer;line-height:1">×</button>
         <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#2dd4bf;margin-bottom:10px">DeltaScreener Pro</div>
-        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:18px">
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
           <span style="font-size:36px;font-weight:800;color:#f9fafb;line-height:1;letter-spacing:-.02em">$5</span>
           <span style="font-size:14px;color:#6b7280;font-weight:500">/ month</span>
         </div>
+        <div style="font-size:13px;color:#2dd4bf;font-weight:600;margin-bottom:18px">or $39/year — save 35% (choose Yearly at checkout)</div>
         <ul style="list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:11px">
-          ${featRow('Unlimited saved screens')}
-          ${featRow('Export to Excel &amp; CSV')}
-          ${featRow('Email alerts on price &amp; filters')}
+          ${featRow('Unlimited saved screens <span style="color:#6b7280">(free: 3)</span>')}
+          ${featRow('Unlimited email alerts <span style="color:#6b7280">(free: 2)</span>')}
+          ${featRow('Full Excel export — up to 2,000 stocks per screen')}
+          ${featRow('10 years of financial history <span style="color:#6b7280">(free: 5)</span>')}
           ${featRow('Priority support')}
         </ul>
         <a href="${GUMROAD_URL}?wanted=true" data-gumroad-overlay-checkout="true" style="display:block;text-align:center;padding:13px 20px;border-radius:11px;background:#2dd4bf;color:#0a0f1a;text-decoration:none;font-weight:700;font-size:14.5px;letter-spacing:.01em">Upgrade to Pro</a>
@@ -1245,7 +1247,7 @@ export async function render() {
   // client-side route for them. Only bail when the SSR shell is actually present
   // (direct page load); client-side nav to these paths falls through to a full reload.
   const STATIC_SSR_ROUTES = new Set(['/pricing', '/about', '/disclaimer', '/refund'])
-  if (STATIC_SSR_ROUTES.has(path)) {
+  if (STATIC_SSR_ROUTES.has(path) || path.startsWith('/compare/')) {
     const prerendered = document.querySelector('[data-prerender-shell]')
     if (prerendered) {
       const t = theme.get()
@@ -1351,6 +1353,7 @@ export function renderHeader() {
       <nav class="nav">
         <a href="${routeHref('/')}" data-route="/" onclick="navigate('/');return false" class="${path === '/' ? 'active' : ''}">Home</a>
         <a href="${routeHref('/screener')}" data-route="/screener" onclick="navigate('/screener');return false" class="${path === '/screener' ? 'active' : ''}">Screener</a>
+        <a href="${routeHref('/screeners')}" data-route="/screeners" onclick="navigate('/screeners');return false" class="${path === '/screeners' || path.startsWith('/screeners/') ? 'active' : ''}">Screens</a>
         <a href="${routeHref('/watchlist')}" data-route="/watchlist" onclick="navigate('/watchlist');return false" class="${path === '/watchlist' ? 'active' : ''}">Watchlist</a>
         <a href="${routeHref('/alerts')}" data-route="/alerts" onclick="navigate('/alerts');return false" class="${path === '/alerts' ? 'active' : ''}">Alerts</a>
         <a href="/blog" class="nav-blog-link${path === '/blog' || path.startsWith('/blog/') ? ' active' : ''}" title="Blog" aria-label="Blog">
@@ -3590,8 +3593,16 @@ export async function renderScreenerPage(el) {
     <div class="container" style="padding:24px 16px">
       <!-- ════════ BUILDER VIEW ════════ -->
       <div id="screener-builder-view">
-        <h1 class="screener-page-h1">US Stock Screener</h1>
-        <p class="screener-page-sub">Filter 5,000+ NYSE &amp; NASDAQ stocks by P/E, ROE, market cap, margins, debt and 30+ more metrics.</p>
+        <div class="screener-page-head">
+          <div>
+            <h1 class="screener-page-h1">US Stock Screener</h1>
+            <p class="screener-page-sub">Filter 5,000+ NYSE &amp; NASDAQ stocks by P/E, ROE, market cap, margins, debt and 30+ more metrics.</p>
+          </div>
+          <button type="button" class="prebuilt-screens-btn" onclick="navigate('/screeners')">
+            <span class="pbs-line1">PREBUILT</span>
+            <span class="pbs-line2">SCREENERS</span>
+          </button>
+        </div>
 
         <div class="search-query-card">
           <h2 class="search-query-title">Build Your Screen</h2>
@@ -4093,7 +4104,28 @@ export async function renderScreenerPage(el) {
     const activeCols = SCREENER_COLUMNS.filter(c => selectedColumns.includes(c.key))
     setExportButtonState(false, 'Preparing Excel…')
     try {
-      const rows = Array.isArray(window.lastScreenerResponse?.results) ? window.lastScreenerResponse.results : []
+      // Pro export = the FULL result set (up to 2,000 rows), not just the
+      // current page. Fetched in batches of 100.
+      let rows = []
+      try {
+        const EXPORT_MAX = 2000
+        const BATCH = 100
+        const first = await apiJson('/screener/custom', { conditions: currentConditions, page: 1, limit: BATCH, sort: currentSort })
+        rows = first.results || []
+        const totalToFetch = Math.min(first.total || rows.length, EXPORT_MAX)
+        const totalPages = Math.ceil(totalToFetch / BATCH)
+        for (let p = 2; p <= totalPages; p++) {
+          setExportButtonState(false, `Fetching rows… ${rows.length}/${totalToFetch}`)
+          const next = await apiJson('/screener/custom', { conditions: currentConditions, page: p, limit: BATCH, sort: currentSort })
+          const batch = next.results || []
+          if (!batch.length) break
+          rows = rows.concat(batch)
+          if (rows.length >= EXPORT_MAX) { rows = rows.slice(0, EXPORT_MAX); break }
+        }
+      } catch {
+        // Full fetch failed — fall back to the already-loaded page
+        rows = Array.isArray(window.lastScreenerResponse?.results) ? window.lastScreenerResponse.results : []
+      }
       if (rows.length) {
         const headers = ['#', 'Ticker', 'Company', ...activeCols.map(c => c.label)]
         const dataRows = rows.map((s, index) => [
@@ -4169,6 +4201,11 @@ export async function renderScreenerPage(el) {
         window.gtag('event', 'screen_saved', { screen_name: name, query: q.slice(0, 100) })
       }
     } catch (e) {
+      if (/upgrade_required/i.test(e.message || '')) {
+        if (typeof window.gtag === 'function') window.gtag('event', 'paywall_hit', { feature: 'saved_screens' })
+        pro.showUpgradeModal()
+        return
+      }
       if (/unauthorized|sign in/i.test(e.message || '')) {
         const refreshed = await refreshGoogleSession()
         if (refreshed) {
@@ -4403,6 +4440,508 @@ export async function renderScreenerPage(el) {
   }
 }
 route('/screener', renderScreenerPage)
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCREENS PAGE — prebuilt screeners + user's saved screens
+// ═══════════════════════════════════════════════════════════════════════
+const PREBUILT_SCREENS = [
+  // ── Value / Undervalued ──────────────────────────────────────────────
+  { cat: 'Value & Undervalued', name: 'Undervalued Stocks', desc: 'Profitable companies trading at low earnings and book multiples.', q: 'P/E > 0 AND P/E < 15 AND P/B < 2 AND ROE > 10 AND Market Cap > 1000' },
+  { cat: 'Value & Undervalued', name: 'Low PE Stocks', desc: 'Stocks priced below 12x earnings.', q: 'P/E > 0 AND P/E < 12 AND Market Cap > 500' },
+  { cat: 'Value & Undervalued', name: 'Low PB Stocks', desc: 'Stocks trading below book value.', q: 'P/B > 0 AND P/B < 1 AND Market Cap > 500' },
+  { cat: 'Value & Undervalued', name: 'Cheap Stocks To Buy Now', desc: 'Low-multiple stocks that are still profitable and lightly leveraged.', q: 'P/E > 0 AND P/E < 12 AND ROE > 12 AND Debt to Equity < 1 AND Market Cap > 1000' },
+  { cat: 'Value & Undervalued', name: 'Best Value Stocks', desc: 'High earnings yield plus solid returns on equity.', q: 'P/E > 0 AND P/E < 15 AND Earnings yield > 7 AND ROE > 12 AND Market Cap > 2000' },
+  { cat: 'Value & Undervalued', name: 'Undervalued Growth Stocks', desc: 'Growing companies with PEG below 1 — growth cheaper than it looks.', q: 'PEG Ratio > 0 AND PEG Ratio < 1 AND Sales growth > 10 AND Market Cap > 1000' },
+  { cat: 'Value & Undervalued', name: 'Stocks Below Intrinsic Value', desc: 'Cheap on both earnings and free cash flow.', q: 'P/E > 0 AND P/E < 12 AND Price to Free Cash Flow > 0 AND Price to Free Cash Flow < 15 AND ROE > 10' },
+  { cat: 'Value & Undervalued', name: 'Low PEG Ratio Stocks', desc: 'Growth-adjusted valuation below 1.', q: 'PEG Ratio > 0 AND PEG Ratio < 1 AND Market Cap > 500' },
+  { cat: 'Value & Undervalued', name: 'Undervalued Large Cap Stocks', desc: 'Large caps under 15x earnings with healthy ROE.', q: 'Market Cap > 10000 AND P/E > 0 AND P/E < 15 AND ROE > 12' },
+  { cat: 'Value & Undervalued', name: 'Undervalued Dividend Stocks', desc: 'Cheap stocks that also pay a meaningful dividend.', q: 'Dividend Yield > 2.5 AND P/E > 0 AND P/E < 15 AND ROE > 10 AND Market Cap > 1000' },
+  // ── Growth ──────────────────────────────────────────────────────────
+  { cat: 'Growth', name: 'Growth Stocks', desc: 'Double-digit sales and profit growth.', q: 'Sales growth > 15 AND Profit growth > 15 AND Market Cap > 1000' },
+  { cat: 'Growth', name: 'High Growth Stocks', desc: 'Sustained 20%+ growth over three years.', q: 'Sales growth 3Years > 20 AND Profit growth 3Years > 20 AND Market Cap > 1000' },
+  { cat: 'Growth', name: 'Best Growth Stocks To Buy', desc: 'Multi-year growers with high margins and strong ROE.', q: 'Sales growth 3Years > 15 AND ROE > 15 AND Gross Margin > 40 AND Market Cap > 2000' },
+  { cat: 'Growth', name: 'Small Cap Growth Stocks', desc: 'Small companies ($300M–$2B) growing fast.', q: 'Market Cap > 300 AND Market Cap < 2000 AND Sales growth > 15 AND Profit growth > 10' },
+  { cat: 'Growth', name: 'Growth Technology Stocks', desc: 'Technology companies with 15%+ revenue growth.', q: 'Sector = Technology AND Sales growth > 15 AND Market Cap > 1000' },
+  { cat: 'Growth', name: 'High Revenue Growth Stocks', desc: 'Revenue growing above 25% a year.', q: 'Sales growth > 25 AND Market Cap > 500' },
+  { cat: 'Growth', name: 'High EPS Growth Stocks', desc: 'Profitable companies compounding earnings above 25%.', q: 'Profit growth > 25 AND EPS > 0 AND Market Cap > 500' },
+  { cat: 'Growth', name: 'Aggressive Small Caps', desc: 'Small caps with accelerating quarterly sales.', q: 'Market Cap > 300 AND Market Cap < 2000 AND YOY Qtr sales growth > 25 AND Sales growth > 20' },
+  { cat: 'Growth', name: 'Mid Cap Growth Stocks', desc: 'Mid caps ($2B–$10B) with double-digit growth.', q: 'Market Cap > 2000 AND Market Cap < 10000 AND Sales growth > 15 AND Profit growth > 10' },
+  { cat: 'Growth', name: 'Fastest Growing Stocks', desc: '30%+ sales and profit growth in the latest quarter.', q: 'YOY Qtr sales growth > 30 AND YOY Qtr profit growth > 30 AND Market Cap > 500' },
+  // ── Dividend & Income ────────────────────────────────────────────────
+  { cat: 'Dividend & Income', name: 'High Dividend Stocks', desc: 'Yields above 4% from established companies.', q: 'Dividend Yield > 4 AND Market Cap > 1000' },
+  { cat: 'Dividend & Income', name: 'Dividend Stocks', desc: 'All dividend payers above $1B market cap.', q: 'Dividend Yield > 1 AND Market Cap > 1000' },
+  { cat: 'Dividend & Income', name: 'Best Dividend Stocks', desc: 'Well-covered dividends from profitable, low-debt large caps.', q: 'Dividend Yield > 2.5 AND ROE > 12 AND Debt to Equity < 1 AND Interest Coverage Ratio > 4 AND Market Cap > 5000' },
+  { cat: 'Dividend & Income', name: 'Dividend Aristocrats', desc: 'Aristocrat-style profile: large, consistently profitable payers.', q: 'Dividend Yield > 2 AND Average ROE 5Years > 12 AND Net Margin > 10 AND Market Cap > 10000' },
+  { cat: 'Dividend & Income', name: 'Dividend Kings', desc: 'King-style profile: very large, high-quality, conservatively financed payers.', q: 'Dividend Yield > 2 AND Average ROE 5Years > 15 AND Debt to Equity < 1 AND Market Cap > 20000' },
+  { cat: 'Dividend & Income', name: 'Monthly Dividend Stocks', desc: 'High-yield REITs — where most monthly payers live.', q: 'Sector = Real Estate AND Dividend Yield > 3 AND Market Cap > 500' },
+  { cat: 'Dividend & Income', name: 'High Yield Dividend Stocks', desc: 'Yields above 6% — check payout sustainability.', q: 'Dividend Yield > 6 AND Market Cap > 500' },
+  { cat: 'Dividend & Income', name: 'Safe Dividend Stocks', desc: 'Moderate yields backed by low debt and strong interest coverage.', q: 'Dividend Yield > 2 AND Dividend Yield < 6 AND Debt to Equity < 0.8 AND Interest Coverage Ratio > 5 AND Net Margin > 8 AND Market Cap > 5000' },
+  { cat: 'Dividend & Income', name: 'Dividend Growth Stocks', desc: 'Payers growing profits fast enough to keep raising the dividend.', q: 'Dividend Yield > 1.5 AND Profit growth 5Years > 8 AND ROE > 15 AND Market Cap > 2000' },
+  { cat: 'Dividend & Income', name: 'REIT Dividend Stocks', desc: 'Real estate trusts yielding above 4%.', q: 'Sector = Real Estate AND Dividend Yield > 4 AND Market Cap > 1000' },
+  { cat: 'Dividend & Income', name: 'Dividend Stocks Under $5', desc: 'Sub-$5 stocks that still pay a dividend.', q: 'Price < 5 AND Price > 0.5 AND Dividend Yield > 3' },
+  { cat: 'Dividend & Income', name: 'Dividend Stocks Under $10', desc: 'Sub-$10 stocks yielding above 3%.', q: 'Price < 10 AND Price > 1 AND Dividend Yield > 3' },
+  { cat: 'Dividend & Income', name: 'Low Debt Dividend Stocks', desc: 'Dividend payers with debt-to-equity below 0.5.', q: 'Dividend Yield > 2.5 AND Debt to Equity < 0.5 AND Market Cap > 1000' },
+  { cat: 'Dividend & Income', name: 'Dividend Payout Ratio Stocks', desc: 'Payers whose earnings comfortably cover the dividend.', q: 'Dividend Yield > 2 AND Net Margin > 10 AND EPS > 1 AND Market Cap > 2000' },
+  { cat: 'Dividend & Income', name: 'Blue Chip Dividend Stocks', desc: '$50B+ companies that pay above 2%.', q: 'Market Cap > 50000 AND Dividend Yield > 2' },
+  { cat: 'Dividend & Income', name: 'S&P 500 Dividend Stocks', desc: 'S&P-scale large caps that pay dividends.', q: 'Market Cap > 15000 AND Dividend Yield > 1.5' },
+  // ── Quality / Profitability ──────────────────────────────────────────
+  { cat: 'Quality & Profitability', name: 'High ROE Stocks', desc: 'Return on equity above 20%.', q: 'ROE > 20 AND Market Cap > 1000' },
+  { cat: 'Quality & Profitability', name: 'Quality Stocks', desc: 'High returns on capital, real margins, manageable debt.', q: 'ROE > 15 AND ROCE > 15 AND Net Margin > 10 AND Debt to Equity < 1 AND Market Cap > 2000' },
+  { cat: 'Quality & Profitability', name: 'Wide Moat Stocks', desc: 'Fat gross margins and years of consistently high ROE — moat behavior.', q: 'Gross Margin > 50 AND Net Margin > 15 AND Average ROE 5Years > 15 AND Market Cap > 10000' },
+  { cat: 'Quality & Profitability', name: 'Low Debt Stocks', desc: 'Debt-to-equity below 0.3.', q: 'Debt to Equity < 0.3 AND Market Cap > 1000' },
+  { cat: 'Quality & Profitability', name: 'High Profit Margin Stocks', desc: 'Net margins above 20%.', q: 'Net Margin > 20 AND Market Cap > 1000' },
+  { cat: 'Quality & Profitability', name: 'High Free Cash Flow Stocks', desc: 'Cheap relative to the free cash they generate.', q: 'Price to Free Cash Flow > 0 AND Price to Free Cash Flow < 15 AND Market Cap > 2000' },
+  { cat: 'Quality & Profitability', name: 'Strong Balance Sheet Stocks', desc: 'High liquidity, low debt, strong interest coverage.', q: 'Current ratio > 2 AND Debt to Equity < 0.5 AND Interest Coverage Ratio > 5 AND Market Cap > 1000' },
+  { cat: 'Quality & Profitability', name: 'High ROA Stocks', desc: 'Return on assets above 10%.', q: 'ROA > 10 AND Market Cap > 1000' },
+  { cat: 'Quality & Profitability', name: 'Companies With Highest ROE', desc: 'The elite tier — ROE above 30%.', q: 'ROE > 30 AND Market Cap > 2000' },
+  { cat: 'Quality & Profitability', name: 'Low Debt High ROE Stocks', desc: 'High returns without leverage doing the work.', q: 'Debt to Equity < 0.5 AND ROE > 20 AND Market Cap > 1000' },
+  // ── Momentum & Technical ─────────────────────────────────────────────
+  { cat: 'Momentum & Technical', name: '52 Week High Stocks', desc: 'Strong daily gainers on heavy volume — names pushing toward highs.', q: 'Change % > 3 AND Volume > 1000000 AND Market Cap > 500' },
+  { cat: 'Momentum & Technical', name: 'Stocks Near 52 Week High', desc: 'Steady climbers with earnings momentum behind the move.', q: 'Change % > 0 AND YOY Qtr profit growth > 15 AND Market Cap > 2000' },
+  { cat: 'Momentum & Technical', name: '52 Week Low Stocks', desc: 'Heavy decliners — a contrarian hunting ground.', q: 'Change % < -3 AND Market Cap > 500' },
+  { cat: 'Momentum & Technical', name: 'Oversold Stocks', desc: 'Beaten down today but still cheap and profitable.', q: 'Change % < -5 AND P/E > 0 AND P/E < 15' },
+  { cat: 'Momentum & Technical', name: 'Overbought Stocks', desc: 'Sharp movers trading at stretched valuations.', q: 'Change % > 5 AND P/E > 40' },
+  { cat: 'Momentum & Technical', name: 'Momentum Stocks', desc: 'Price strength confirmed by accelerating fundamentals.', q: 'Change % > 5 AND YOY Qtr profit growth > 20 AND YOY Qtr sales growth > 15 AND Market Cap > 2000' },
+  { cat: 'Momentum & Technical', name: 'Breakout Stocks', desc: 'Big moves on unusually heavy volume.', q: 'Change % > 4 AND Volume > 2000000 AND Market Cap > 500' },
+  { cat: 'Momentum & Technical', name: 'Most Active Stocks', desc: 'Highest trading volume today.', q: 'Volume > 10000000' },
+  { cat: 'Momentum & Technical', name: 'Day Gainers Stocks', desc: 'Up more than 5% today.', q: 'Change % > 5' },
+  { cat: 'Momentum & Technical', name: 'Day Losers Stocks', desc: 'Down more than 5% today.', q: 'Change % < -5' },
+  { cat: 'Momentum & Technical', name: 'High Volume Stocks', desc: 'Liquid names trading over 5M shares.', q: 'Volume > 5000000 AND Market Cap > 1000' },
+  { cat: 'Momentum & Technical', name: 'Stocks With Unusual Volume', desc: 'Heavy volume paired with a strong price move.', q: 'Volume > 5000000 AND Change % > 3' },
+  // ── Size & Price-Based ───────────────────────────────────────────────
+  { cat: 'Size & Price', name: 'Penny Stocks', desc: 'Stocks trading under $5.', q: 'Price < 5 AND Price > 0.1' },
+  { cat: 'Size & Price', name: 'Penny Stocks To Buy', desc: 'Sub-$5 stocks with growing sales and controlled debt.', q: 'Price < 5 AND Price > 0.5 AND Sales growth > 10 AND Debt to Equity < 1' },
+  { cat: 'Size & Price', name: 'Best Penny Stocks', desc: 'Sub-$5 stocks that are actually profitable.', q: 'Price < 5 AND Price > 0.5 AND EPS > 0 AND ROE > 5' },
+  { cat: 'Size & Price', name: 'Small Cap Stocks', desc: 'Market cap between $300M and $2B.', q: 'Market Cap > 300 AND Market Cap < 2000' },
+  { cat: 'Size & Price', name: 'Large Cap Stocks', desc: 'Market cap above $10B.', q: 'Market Cap > 10000' },
+  { cat: 'Size & Price', name: 'Blue Chip Stocks', desc: '$50B+ leaders with proven profitability.', q: 'Market Cap > 50000 AND ROE > 12 AND Net Margin > 8' },
+  { cat: 'Size & Price', name: 'Stocks Under $5', desc: 'Everything under $5 with a real market cap.', q: 'Price < 5 AND Price > 0.1 AND Market Cap > 100' },
+  { cat: 'Size & Price', name: 'Stocks Under $10', desc: 'Under $10 with at least $200M market cap.', q: 'Price < 10 AND Price > 1 AND Market Cap > 200' },
+  { cat: 'Size & Price', name: 'Stocks Under $1', desc: 'The riskiest tier — trading below $1.', q: 'Price < 1 AND Price > 0.01' },
+  { cat: 'Size & Price', name: 'Mega Cap Stocks', desc: 'The giants — market cap above $200B.', q: 'Market Cap > 200000' },
+  // ── Institutional / Analyst / Insider (fundamental proxies) ──────────
+  { cat: 'Institutional & Analyst', name: 'Analyst Strong Buy Stocks', desc: 'The growth-plus-quality profile analysts typically rate highest.', q: 'ROE > 15 AND Profit growth > 15 AND YOY Qtr profit growth > 10 AND Market Cap > 5000' },
+  { cat: 'Institutional & Analyst', name: 'Stocks With Insider Buying', desc: 'Cheap, profitable pullbacks — the setups insiders tend to buy.', q: 'P/E > 0 AND P/E < 15 AND Change % < 0 AND ROE > 10 AND Market Cap > 1000' },
+  { cat: 'Institutional & Analyst', name: 'Most Institutionally Bought Stocks', desc: 'Large, liquid names where institutions concentrate.', q: 'Market Cap > 20000 AND Volume > 2000000' },
+  { cat: 'Institutional & Analyst', name: 'Stock Buybacks List', desc: 'Cash-generative large caps with capacity for buybacks.', q: 'Price to Free Cash Flow > 0 AND Price to Free Cash Flow < 20 AND Debt to Equity < 1 AND Market Cap > 10000' },
+  { cat: 'Institutional & Analyst', name: 'Hedge Fund Favorite Stocks', desc: 'High-ROE growers at hedge-fund scale.', q: 'Market Cap > 10000 AND ROE > 20 AND Sales growth > 10' },
+  { cat: 'Institutional & Analyst', name: 'Stocks Warren Buffett Owns', desc: 'Buffett-style criteria: durable returns, fat margins, low debt.', q: 'ROE > 20 AND Average ROE 5Years > 18 AND ROCE > 15 AND Net Margin > 15 AND Debt to Equity < 0.5 AND Interest Coverage Ratio > 5 AND Market Cap > 5000' },
+  { cat: 'Institutional & Analyst', name: 'Recently Upgraded Stocks', desc: 'Earnings surprises with price follow-through — upgrade fuel.', q: 'YOY Qtr profit growth > 25 AND Change % > 2 AND Market Cap > 1000' },
+  { cat: 'Institutional & Analyst', name: 'Rising Institutional Ownership Stocks', desc: 'Growing large caps with deep, liquid trading.', q: 'Market Cap > 5000 AND YOY Qtr sales growth > 15 AND Volume > 1000000' },
+  // ── Risk / Safety / Volatility ───────────────────────────────────────
+  { cat: 'Risk & Volatility', name: 'Most Shorted Stocks', desc: 'Leveraged loss-makers — the profile short sellers target.', q: 'Debt to Equity > 2 AND Net Margin < 0 AND Market Cap > 500' },
+  { cat: 'Risk & Volatility', name: 'High Short Interest Stocks', desc: 'Unprofitable names under active selling pressure.', q: 'Net Margin < 0 AND Change % < -2 AND Volume > 1000000' },
+  { cat: 'Risk & Volatility', name: 'Low Volatility Stocks', desc: 'Beta below 0.8 — calmer than the market.', q: 'Beta < 0.8 AND Beta > 0 AND Market Cap > 5000' },
+  { cat: 'Risk & Volatility', name: 'High Beta Stocks', desc: 'Beta above 1.5 — amplified market moves.', q: 'Beta > 1.5 AND Market Cap > 1000' },
+  { cat: 'Risk & Volatility', name: 'Defensive Stocks', desc: 'Consumer staples that hold up in downturns.', q: 'Sector = Consumer Defensive AND Market Cap > 2000 AND Dividend Yield > 1.5' },
+  { cat: 'Risk & Volatility', name: 'Recession Proof Stocks', desc: 'Low beta, real margins, and a dividend cushion.', q: 'Beta < 0.9 AND Beta > 0 AND Net Margin > 8 AND Dividend Yield > 2 AND Market Cap > 5000' },
+  { cat: 'Risk & Volatility', name: 'Safe Stocks To Buy', desc: 'Low-beta, low-debt large caps with solid returns.', q: 'Beta < 1 AND Beta > 0 AND Debt to Equity < 0.5 AND ROE > 12 AND Market Cap > 10000' },
+  // ── Sector & Thematic ────────────────────────────────────────────────
+  { cat: 'Sector & Thematic', name: 'AI Stocks To Buy', desc: 'Fast-growing, high-margin technology — where AI leaders cluster.', q: 'Sector = Technology AND Sales growth > 20 AND Gross Margin > 50 AND Market Cap > 5000' },
+  { cat: 'Sector & Thematic', name: 'Semiconductor Stocks', desc: 'Large tech with the chip-maker margin profile.', q: 'Sector = Technology AND Gross Margin > 40 AND Net Margin > 15 AND Market Cap > 10000' },
+  { cat: 'Sector & Thematic', name: 'EV Stocks', desc: 'Fast-growing consumer cyclical names, including auto makers.', q: 'Sector = Consumer Cyclical AND Sales growth > 15 AND Market Cap > 1000' },
+  { cat: 'Sector & Thematic', name: 'Tech Stocks To Buy', desc: 'Profitable, growing technology companies.', q: 'Sector = Technology AND ROE > 15 AND Sales growth > 10 AND Market Cap > 2000' },
+  { cat: 'Sector & Thematic', name: 'Energy Stocks', desc: 'The full US energy sector above $1B.', q: 'Sector = Energy AND Market Cap > 1000' },
+  { cat: 'Sector & Thematic', name: 'Healthcare Stocks To Buy', desc: 'Profitable healthcare companies with real margins.', q: 'Sector = Healthcare AND ROE > 12 AND Net Margin > 8 AND Market Cap > 2000' },
+  { cat: 'Sector & Thematic', name: 'Bank Stocks', desc: 'Financial services companies above $2B.', q: 'Sector = Financial Services AND Market Cap > 2000' },
+  { cat: 'Sector & Thematic', name: 'Cybersecurity Stocks', desc: 'Software-style economics: 60%+ gross margins and growing sales.', q: 'Sector = Technology AND Gross Margin > 60 AND Sales growth > 12' },
+  { cat: 'Sector & Thematic', name: 'Clean Energy Stocks', desc: 'Utilities — including renewable and clean-power operators.', q: 'Sector = Utilities AND Market Cap > 1000' },
+  { cat: 'Sector & Thematic', name: 'Quantum Computing Stocks', desc: 'Speculative small-to-mid tech growers.', q: 'Sector = Technology AND Market Cap > 500 AND Market Cap < 20000 AND Sales growth > 15' },
+  // ── Starter / General ────────────────────────────────────────────────
+  { cat: 'Starter Screens', name: 'Stock Screener Starter', desc: 'A sensible first screen: large, reasonably priced, profitable.', q: 'Market Cap > 10000 AND P/E < 30 AND ROE > 15' },
+  { cat: 'Starter Screens', name: 'Free Stock Screener Picks', desc: 'Mid-to-large caps at fair multiples with solid returns.', q: 'Market Cap > 2000 AND P/E > 0 AND P/E < 20 AND ROE > 12' },
+  { cat: 'Starter Screens', name: 'Best Stock Screener Combo', desc: 'Growth, quality, and valuation in one balanced filter.', q: 'ROE > 15 AND Sales growth > 10 AND Debt to Equity < 1 AND P/E < 25 AND Market Cap > 1000' },
+  { cat: 'Starter Screens', name: 'NASDAQ Style Tech Screen', desc: 'Tech-heavy universe in the NASDAQ spirit.', q: 'Sector = Technology AND Market Cap > 1000' },
+  { cat: 'Starter Screens', name: 'Stocks To Buy Now', desc: 'Quality names moving up with earnings momentum.', q: 'Change % > 0 AND ROE > 15 AND YOY Qtr profit growth > 10 AND P/E < 25 AND Market Cap > 2000' },
+  { cat: 'Starter Screens', name: 'Best Stocks To Buy Right Now', desc: 'Strong returns, growing profits, sane price.', q: 'ROE > 18 AND Profit growth > 15 AND Debt to Equity < 1 AND P/E < 30 AND Market Cap > 5000' },
+  { cat: 'Starter Screens', name: 'How To Find Undervalued Stocks', desc: 'The classic undervaluation checklist in one screen.', q: 'P/E > 0 AND P/E < 15 AND P/B < 2 AND Earnings yield > 6 AND Debt to Equity < 1' },
+]
+
+function screenQuerySummary(q) {
+  return String(q || '').replace(/\s+AND\s+/g, ' AND ').replace(/\n/g, ' ')
+}
+
+const screenSlug = name => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+function runPrebuiltScreen(i) {
+  const s = PREBUILT_SCREENS[i]
+  if (!s) return
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', 'prebuilt_screen_opened', { screen_name: s.name })
+  }
+  navigate('/screeners/' + screenSlug(s.name))
+}
+window.runPrebuiltScreen = runPrebuiltScreen
+
+export async function renderScreensPage(el) {
+  setMeta({
+    title: 'Stock Screens — Prebuilt & Saved Screeners | DeltaScreener',
+    description: 'Ready-made stock screens for value, growth, dividends and momentum investing, plus your own saved screens. Run any screen on 5,000+ US stocks with one click.',
+    path: '/screeners',
+    canonical: `${SITE_ORIGIN}/screeners`,
+    keywords: 'prebuilt stock screens, stock screener presets, value screen, growth screen, dividend screen, DeltaScreener'
+  })
+
+  el.innerHTML = `
+    <div class="container" style="padding:24px 16px 56px">
+      <div class="screener-page-head">
+        <div>
+          <h1 class="screener-page-h1">Stock Screens</h1>
+          <p class="screener-page-sub">Run a ready-made screen or pick up one of your saved screens. Every screen is fully editable after you open it.</p>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="navigate('/screener')">＋ Create new screen</button>
+      </div>
+
+      <section class="screens-section">
+        <div class="screens-section-hdr">
+          <h2>Your Saved Screens</h2>
+          <span id="my-screens-count" class="screens-count"></span>
+        </div>
+        <div id="my-screens-body"><div class="spinner"></div></div>
+      </section>
+
+      <section class="screens-section">
+        <div class="screens-section-hdr">
+          <h2>Community Screens</h2>
+          <span class="screens-count" id="community-screens-count"></span>
+        </div>
+        <div id="community-screens-body"><div class="spinner"></div></div>
+      </section>
+
+      <section class="screens-section">
+        <div class="screens-section-hdr">
+          <h2>Prebuilt Screens</h2>
+          <span class="screens-count">${PREBUILT_SCREENS.length} screens</span>
+        </div>
+        <div class="screens-cat-nav">
+          ${[...new Set(PREBUILT_SCREENS.map(s => s.cat))].map(cat => `
+            <button type="button" class="screens-cat-chip" onclick="document.getElementById('cat-${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')}').scrollIntoView({behavior:'smooth',block:'start'})">${cat}</button>
+          `).join('')}
+        </div>
+        ${[...new Set(PREBUILT_SCREENS.map(s => s.cat))].map(cat => `
+          <div class="screens-cat-group" id="cat-${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')}">
+            <h3 class="screens-cat-title">${cat} <span class="screens-count">${PREBUILT_SCREENS.filter(s => s.cat === cat).length}</span></h3>
+            <div class="screens-list">
+              ${PREBUILT_SCREENS.map((s, i) => ({ s, i })).filter(x => x.s.cat === cat).map(({ s, i }) => `
+                <div class="screen-row" onclick="runPrebuiltScreen(${i})" role="link" tabindex="0" onkeydown="if(event.key==='Enter')runPrebuiltScreen(${i})">
+                  <div class="screen-row-main">
+                    <div class="screen-row-name">${s.name}</div>
+                    <div class="screen-row-desc">${s.desc}</div>
+                    <div class="screen-row-query">${screenQuerySummary(s.q)}</div>
+                  </div>
+                  <div class="screen-row-arrow">→</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </section>
+    </div>
+  `
+
+  // ── Community screens (public, anonymized, paginated) ─────────────────
+  const communityBody = document.getElementById('community-screens-body')
+  const communityCount = document.getElementById('community-screens-count')
+  async function loadCommunityScreens(cpage) {
+    communityBody.innerHTML = '<div class="spinner"></div>'
+    try {
+      const data = await api(`/screens/public?page=${cpage}&limit=24`)
+      const screens = data.screens || []
+      const pages = data.pages || 1
+      communityCount.textContent = (data.total || 0).toLocaleString('en-US') + ' screens by users'
+      if (!screens.length) {
+        communityBody.innerHTML = '<div class="screens-empty"><p>No community screens yet. Save a screen in the Screener and it will appear here for everyone.</p></div>'
+        return
+      }
+      communityBody.innerHTML = `
+        <div class="screens-list">
+          ${screens.map(s => `
+            <div class="screen-row" onclick="navigate('/screeners/${s.id}/${screenSlug(s.name)}')" role="link" tabindex="0">
+              <div class="screen-row-main">
+                <div class="screen-row-name">${String(s.name || 'Community screen').replace(/</g, '&lt;').slice(0, 80)}</div>
+                <div class="screen-row-query">${screenQuerySummary(s.query).replace(/</g, '&lt;').slice(0, 180)}</div>
+              </div>
+              <div class="screen-row-arrow">→</div>
+            </div>
+          `).join('')}
+        </div>
+        ${pages > 1 ? `
+          <div class="screen-detail-pager">
+            <button class="btn btn-outline btn-sm" ${cpage <= 1 ? 'disabled' : ''} onclick="loadCommunityScreensPage(${cpage - 1})">← Prev</button>
+            <span>Page ${cpage} of ${pages}</span>
+            <button class="btn btn-outline btn-sm" ${cpage >= pages ? 'disabled' : ''} onclick="loadCommunityScreensPage(${cpage + 1})">Next →</button>
+          </div>` : ''}
+      `
+    } catch (e) {
+      communityCount.textContent = ''
+      communityBody.innerHTML = '<div class="screens-empty"><p>Could not load community screens right now.</p></div>'
+    }
+  }
+  window.loadCommunityScreensPage = loadCommunityScreens
+  const __hubParams = new URLSearchParams(window.location.search)
+  const initialCPage = Math.max(1, parseInt(__hubParams.get('page') || __hubParams.get('cpage') || '1', 10) || 1)
+  loadCommunityScreens(initialCPage)
+
+  const body = document.getElementById('my-screens-body')
+  const count = document.getElementById('my-screens-count')
+  if (!auth.signedIn()) {
+    count.textContent = ''
+    body.innerHTML = `
+      <div class="screens-empty">
+        <p>Sign in with Google to save your own screens and access them from any device.</p>
+        <button class="btn btn-outline btn-sm" onclick="navigate('/screener')">Open the screener →</button>
+      </div>
+    `
+    return
+  }
+  try {
+    const data = await api('/user/screens')
+    const screens = data.screens || []
+    count.textContent = screens.length + ' saved'
+    if (!screens.length) {
+      body.innerHTML = '<div class="screens-empty"><p>No saved screens yet. Open the Screener, write a query, then click <strong>Save Screen</strong>.</p></div>'
+      return
+    }
+    body.innerHTML = `
+      <div class="screens-list">
+        ${screens.map(s => `
+          <div class="screen-row" onclick='openSavedScreen(${JSON.stringify(s.query || '')})' role="link" tabindex="0">
+            <div class="screen-row-main">
+              <div class="screen-row-name">${String(s.name || 'Saved screen').replace(/</g, '&lt;')}</div>
+              <div class="screen-row-query">${screenQuerySummary(s.query)}</div>
+            </div>
+            <div class="screen-row-actions" data-stop-route>
+              <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();deleteSavedScreen(${s.id})">Delete</button>
+              <div class="screen-row-arrow">→</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `
+  } catch (e) {
+    count.textContent = ''
+    body.innerHTML = '<div class="error">Could not load your saved screens.</div>'
+  }
+}
+route('/screeners', renderScreensPage)
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCREEN DETAIL PAGE — /screeners/:slug (pre-run results, screener.in style)
+// ═══════════════════════════════════════════════════════════════════════
+function renderScreenNotFound(el) {
+  setMeta({ title: 'Screen Not Found | DeltaScreener', description: 'This screen does not exist.', path: '/screeners', noindex: true })
+    el.innerHTML = `
+      <div class="container" style="padding:60px 16px;text-align:center">
+        <h1 style="font-size:28px;font-weight:800;margin-bottom:8px">Screen not found</h1>
+        <p style="color:#787b86;margin-bottom:20px">This screen doesn't exist or was renamed.</p>
+        <button class="btn btn-primary" onclick="navigate('/screeners')">Browse all screens</button>
+      </div>
+    `
+}
+
+export async function renderScreenDetailPage(el, params) {
+  const slug = String(params.slug || '').toLowerCase()
+  const screen = PREBUILT_SCREENS.find(s => screenSlug(s.name) === slug)
+  if (!screen) return renderScreenNotFound(el)
+  return renderScreenDetailCommon(el, screen, slug)
+}
+
+async function renderCommunityScreenDetailPage(el, params) {
+  try {
+    const data = await api('/screens/public/' + encodeURIComponent(params.id))
+    const s = data.screen
+    if (!s) return renderScreenNotFound(el)
+    const screen = { name: s.name, desc: 'A community screen created and shared by a DeltaScreener user. Open it, run it, or edit the filters to make it your own.', cat: 'Community', q: s.query }
+    return renderScreenDetailCommon(el, screen, `${s.id}/${screenSlug(s.name)}`)
+  } catch (e) {
+    return renderScreenNotFound(el)
+  }
+}
+
+async function renderScreenDetailCommon(el, screen, slug) {
+  setMeta({
+    title: `${screen.name} — Stock Screen | DeltaScreener`,
+    description: `${screen.desc} Live results from 5,000+ US stocks: ${screen.q.slice(0, 120)}`,
+    path: `/screeners/${slug}`,
+    canonical: `${SITE_ORIGIN}/screeners/${slug}`,
+    keywords: `${screen.name.toLowerCase()}, stock screen, ${screen.cat.toLowerCase()}, DeltaScreener`
+  })
+  window.scrollTo(0, 0)
+
+  const prettyQ = screen.q.replace(/ AND /g, ' AND\n')
+  el.innerHTML = `
+    <div class="container" style="padding:24px 16px 56px">
+      <div class="screen-detail-crumb">
+        <a href="/screeners" data-route="/screeners">Screens</a> <span>›</span> <span>${screen.cat}</span>
+      </div>
+      <div class="screener-page-head">
+        <div>
+          <h1 class="screener-page-h1" style="font-size:clamp(26px,4vw,38px)">${screen.name}</h1>
+          <p class="screener-page-sub">${screen.desc}</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick='openSavedScreen(${JSON.stringify(prettyQ)})'>✎ Edit in Screener</button>
+          <button class="btn btn-primary" onclick="navigate('/screeners')">All Screens</button>
+        </div>
+      </div>
+      <div class="screen-detail-query"><span class="screen-detail-query-label">Filters</span>${screenQuerySummary(screen.q)}</div>
+      <div class="screens-section-hdr" style="margin-top:22px">
+        <h2 style="font-size:20px;font-weight:800;margin:0">Matching Stocks</h2>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="screens-count" id="screen-detail-count"></span>
+          <button class="btn btn-primary screen-detail-addcol-btn" id="screen-detail-addcol-btn">＋ ADD RATIO COLUMN</button>
+        </div>
+      </div>
+      <div id="screen-detail-results"><div class="spinner"></div></div>
+    </div>
+    <div class="ratio-modal-backdrop hidden" id="detail-col-backdrop">
+      <div class="ratio-modal" role="dialog" aria-label="Add ratio columns">
+        <div class="ratio-modal-hdr">
+          <strong>Add ratio columns to the table</strong>
+          <button type="button" class="ratio-modal-close" id="detail-col-close" aria-label="Close">×</button>
+        </div>
+        <input type="text" class="ratio-modal-search" id="detail-col-search" placeholder="Search ratios… e.g. ROCE, margin, growth" autocomplete="off">
+        <div class="ratio-modal-body" id="detail-col-body"></div>
+        <div style="padding:12px 16px;border-top:1px solid rgba(128,128,128,.2);display:flex;justify-content:flex-end;gap:10px">
+          <button class="btn btn-outline btn-sm" id="detail-col-clear">Clear all</button>
+          <button class="btn btn-primary btn-sm" id="detail-col-apply">Apply</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  const PAGE = 25
+  const BASE_COL_KEYS = ['currentPrice', 'changePct', 'mktCap', 'pe', 'roe', 'dividendYield']
+  const EXTRA_COLS_LS = 'ds-screen-detail-extra-cols'
+  const resultsEl = document.getElementById('screen-detail-results')
+  const countEl = document.getElementById('screen-detail-count')
+  const conditions = parseQuery(screen.q)
+  let currentDetailPage = 1
+  let lastRes = null
+
+  function getExtraCols() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(EXTRA_COLS_LS) || '[]')
+      if (Array.isArray(saved)) return saved.filter(k => SCREENER_COLUMNS.some(c => c.key === k) && !BASE_COL_KEYS.includes(k))
+    } catch {}
+    return []
+  }
+  let extraCols = getExtraCols()
+
+  function paintResults() {
+    if (!lastRes) return
+    const rows = lastRes.results || []
+    const total = lastRes.total || rows.length
+    const page = currentDetailPage
+    const pages = Math.max(1, Math.ceil(Math.min(total, 2000) / PAGE))
+    countEl.textContent = total.toLocaleString('en-US') + ' stocks'
+    if (!rows.length) {
+      resultsEl.innerHTML = '<div class="screens-empty"><p>No stocks match this screen right now. Market-dependent screens (momentum, gainers/losers) can be empty on quiet days.</p></div>'
+      return
+    }
+    const extraDefs = extraCols.map(k => SCREENER_COLUMNS.find(c => c.key === k)).filter(Boolean)
+    resultsEl.innerHTML = `
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr>
+            <th style="text-align:left">#</th><th style="text-align:left">Company</th><th>Price</th><th>Change %</th><th>Market Cap</th><th>P/E</th><th>ROE</th><th>Div Yield</th>
+            ${extraDefs.map(c => `<th>${c.label}</th>`).join('')}
+            <th>Sector</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r, i) => `
+              <tr style="cursor:pointer" onclick="navigate('/stock/${r.ticker}')">
+                <td style="text-align:left;color:#787b86">${(page - 1) * PAGE + i + 1}</td>
+                <td style="text-align:left"><span class="screen-detail-company">${renderScreenerLogo(r.ticker)}<span class="screen-detail-company-meta"><strong>${r.ticker}</strong>${r.name && r.name !== r.ticker ? `<span class="screen-detail-company-name">${String(r.name).slice(0, 34)}</span>` : ''}</span></span></td>
+                <td>${fmt.usd(r.currentPrice ?? r.price)}</td>
+                <td style="color:${(r.changePct ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">${fmt.pct(r.changePct)}</td>
+                <td>${fmt.compact(r.mktCap ?? r.marketCap)}</td>
+                <td>${fmt.num(r.pe)}</td>
+                <td>${fmt.pctAbs(r.roe)}</td>
+                <td>${fmt.pctAbs(r.dividendYield)}</td>
+                ${extraDefs.map(c => `<td>${formatScreenerCell(r[c.key], c.type)}</td>`).join('')}
+                <td style="font-size:12px;color:#787b86">${r.sector || '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${pages > 1 ? `
+        <div class="screen-detail-pager">
+          <button class="btn btn-outline btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="loadScreenDetailPage(${page - 1})">← Prev</button>
+          <span>Page ${page} of ${pages}</span>
+          <button class="btn btn-outline btn-sm" ${page >= pages ? 'disabled' : ''} onclick="loadScreenDetailPage(${page + 1})">Next →</button>
+        </div>` : ''}
+    `
+  }
+
+  async function loadPage(page, scroll = true) {
+    resultsEl.innerHTML = '<div class="spinner"></div>'
+    try {
+      const res = await apiJson('/screener/custom', { conditions, page, limit: PAGE, sort: { field: 'mktCap', dir: 'desc' } })
+      lastRes = res
+      currentDetailPage = page
+      paintResults()
+      if (scroll && page > 1) document.querySelector('.screens-section-hdr')?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    } catch (e) {
+      resultsEl.innerHTML = '<div class="error">Could not load results: ' + e.message + '</div>'
+    }
+  }
+  window.loadScreenDetailPage = loadPage
+  const __initialResultsPage = Math.max(1, parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10) || 1)
+  loadPage(__initialResultsPage, false)
+
+  // ── Add Ratio Column modal ────────────────────────────────────────────
+  const backdrop = document.getElementById('detail-col-backdrop')
+  const colBody = document.getElementById('detail-col-body')
+  const colSearch = document.getElementById('detail-col-search')
+  let pendingCols = []
+
+  function paintColPicker(filter = '') {
+    const f = filter.toLowerCase()
+    const candidates = SCREENER_COLUMNS.filter(c => !BASE_COL_KEYS.includes(c.key))
+      .filter(c => !f || c.label.toLowerCase().includes(f))
+    colBody.innerHTML = candidates.length ? candidates.map(c => `
+      <label class="detail-col-option">
+        <input type="checkbox" value="${c.key}" ${pendingCols.includes(c.key) ? 'checked' : ''}>
+        <span>${c.label}</span>
+      </label>
+    `).join('') : '<div class="empty" style="padding:16px">No ratios match your search.</div>'
+    colBody.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) { if (!pendingCols.includes(cb.value)) pendingCols.push(cb.value) }
+        else pendingCols = pendingCols.filter(k => k !== cb.value)
+      })
+    })
+  }
+
+  document.getElementById('screen-detail-addcol-btn').addEventListener('click', () => {
+    pendingCols = [...extraCols]
+    colSearch.value = ''
+    paintColPicker()
+    backdrop.classList.remove('hidden')
+    colSearch.focus()
+  })
+  document.getElementById('detail-col-close').addEventListener('click', () => backdrop.classList.add('hidden'))
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.classList.add('hidden') })
+  colSearch.addEventListener('input', () => paintColPicker(colSearch.value))
+  document.getElementById('detail-col-clear').addEventListener('click', () => { pendingCols = []; paintColPicker(colSearch.value) })
+  document.getElementById('detail-col-apply').addEventListener('click', () => {
+    extraCols = [...pendingCols]
+    localStorage.setItem(EXTRA_COLS_LS, JSON.stringify(extraCols))
+    backdrop.classList.add('hidden')
+    paintResults()
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'screen_detail_columns', { columns: extraCols.join(','), screen_name: screen.name })
+    }
+  })
+
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', 'prebuilt_screen_viewed', { screen_name: screen.name, slug })
+  }
+}
+route('/screeners/:slug', renderScreenDetailPage)
+route('/screeners/:id/:slug', renderCommunityScreenDetailPage)
 
 // ═══════════════════════════════════════════════════════════════════════
 // WATCHLIST PAGE
@@ -4649,6 +5188,12 @@ function openAlertModal(stock) {
       ])
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Create alert'
+      if (/upgrade_required/i.test(e?.message || '')) {
+        if (typeof window.gtag === 'function') window.gtag('event', 'paywall_hit', { feature: 'alerts' })
+        close()
+        pro.showUpgradeModal()
+        return
+      }
       err.textContent = e?.message || 'Could not create alert.'
     }
   })

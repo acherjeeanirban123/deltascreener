@@ -4,7 +4,7 @@ const GUMROAD_URL = 'https://acherjeeanirban.gumroad.com/l/acuvpw'
 
 export async function onRequestGet() {
   const title = 'Pricing — DeltaScreener Pro | US Stock Screener'
-  const description = 'DeltaScreener is free for all investors. Upgrade to Pro for $5/month to unlock unlimited saved screens, email alerts, Excel export, and advanced filters.'
+  const description = 'DeltaScreener is free for all investors. Upgrade to Pro for $5/month to unlock unlimited saved screens & alerts, full Excel export, and 10 years of financial history.'
   const canonicalUrl = `${SITE_ORIGIN}/pricing`
 
   const bodyHtml = `
@@ -235,11 +235,12 @@ export async function onRequestGet() {
           <li><span class="check">✓</span> Screen 5,000+ US stocks</li>
           <li><span class="check">✓</span> 30+ fundamental filters</li>
           <li><span class="check">✓</span> Full company pages</li>
-          <li><span class="check">✓</span> 10-year financial history</li>
+          <li><span class="check">✓</span> 5-year financial history</li>
           <li><span class="check">✓</span> No sign-up required</li>
-          <li class="locked"><span class="lock">—</span> Saved screens (3 max)</li>
+          <li><span class="check">✓</span> 3 saved screens</li>
+          <li><span class="check">✓</span> 2 email alerts</li>
           <li class="locked"><span class="lock">—</span> Excel / CSV export</li>
-          <li class="locked"><span class="lock">—</span> Email alerts</li>
+          <li class="locked"><span class="lock">—</span> Years 6–10 of financials</li>
         </ul>
         <a href="/screener" class="plan-btn free">Start Screening Free</a>
       </div>
@@ -249,12 +250,13 @@ export async function onRequestGet() {
         <div class="plan-badge">Recommended</div>
         <div class="plan-label">Pro</div>
         <div class="plan-price">$5<span>/mo</span></div>
-        <div class="plan-cadence">Billed monthly · Cancel anytime</div>
+        <div class="plan-cadence">or <strong>$39/year — save 35%</strong> · Cancel anytime</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Everything in Free</li>
           <li><span class="check">✓</span> Unlimited saved screens</li>
-          <li><span class="check">✓</span> Export to Excel &amp; CSV</li>
-          <li><span class="check">✓</span> Email alerts on price &amp; filter triggers</li>
+          <li><span class="check">✓</span> Unlimited email alerts</li>
+          <li><span class="check">✓</span> Full Excel export — up to 2,000 stocks</li>
+          <li><span class="check">✓</span> 10-year financial history</li>
           <li><span class="check">✓</span> Unlimited watchlists</li>
           <li><span class="check">✓</span> Deep company pages — peers &amp; trends</li>
           <li><span class="check">✓</span> Priority support</li>
@@ -289,11 +291,11 @@ export async function onRequestGet() {
           <tr><td>Stock universe</td><td>5,000+ US stocks</td><td class="col-pro">5,000+ US stocks</td></tr>
           <tr><td>Fundamental filters</td><td>30+</td><td class="col-pro">30+</td></tr>
           <tr><td>Company pages &amp; financials</td><td class="yes">✓</td><td class="col-pro yes">✓</td></tr>
-          <tr><td>10-year financial history</td><td class="yes">✓</td><td class="col-pro yes">✓</td></tr>
+          <tr><td>Financial history</td><td style="color:#6b7280">5 years</td><td class="col-pro yes">✓ 10 years</td></tr>
           <tr><td>No sign-up required</td><td class="yes">✓</td><td class="col-pro yes">✓</td></tr>
           <tr><td>Saved screens</td><td style="color:#6b7280">3 max</td><td class="col-pro yes">✓ Unlimited</td></tr>
-          <tr><td>Excel / CSV export</td><td class="no">—</td><td class="col-pro yes">✓</td></tr>
-          <tr><td>Email alerts</td><td class="no">—</td><td class="col-pro yes">✓</td></tr>
+          <tr><td>Excel / CSV export</td><td class="no">—</td><td class="col-pro yes">✓ Up to 2,000 rows</td></tr>
+          <tr><td>Email alerts</td><td style="color:#6b7280">2 active</td><td class="col-pro yes">✓ Unlimited</td></tr>
           <tr><td>Unlimited watchlists</td><td class="no">—</td><td class="col-pro yes">✓</td></tr>
           <tr><td>Priority support</td><td class="no">—</td><td class="col-pro yes">✓</td></tr>
           <tr><td>Money-back guarantee</td><td class="no">—</td><td class="col-pro yes">✓ 30 days</td></tr>

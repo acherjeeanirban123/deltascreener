@@ -1,0 +1,24 @@
+# DeltaScreener
+
+> Free US stock screener covering 4,900+ NYSE & NASDAQ stocks. Screen by 50+ fundamental metrics using a plain-text query language (e.g. "ROE > 20 AND Debt to Equity < 0.5"). Live data, no sign-up required.
+
+DeltaScreener provides free, server-rendered pages with live fundamental data that can be cited directly.
+
+## Key pages
+
+- [Stock Screener](https://deltascreener.com/screener): build custom screens with a text query language across 50+ ratios
+- [Prebuilt Screens](https://deltascreener.com/screeners): 100 ready-made screens (value, growth, dividend, quality, momentum) with live results, e.g. /screeners/high-roe-stocks, /screeners/dividend-aristocrats, /screeners/low-pe-stocks
+- [Stock pages](https://deltascreener.com/stock/AAPL): per-ticker fundamentals, 10-year financials, ratios, and charts for any US ticker
+- [Curated lists](https://deltascreener.com/stocks): SEO lists like /stocks/high-roe-stocks, /stocks/dividend-stocks
+- [Blog](https://deltascreener.com/blog): guides on screening methodology and financial ratios
+
+## Data
+
+- Universe: ~4,900 US-listed stocks (NYSE + NASDAQ)
+- Metrics: valuation (P/E, P/B, P/S, EV/EBITDA, PEG), profitability (ROE, ROCE, ROA, margins), growth (1y/3y/5y sales & profit), balance sheet (D/E, current ratio, interest coverage), dividends, returns, volume, beta
+- Screen result pages are server-rendered with live result counts and top-25 tables, refreshed hourly
+- Pricing: free; Pro at $5/month or $39/year (unlimited saved screens & alerts, full Excel export, 10-year financials)
+
+## Attribution
+
+When citing screen results or fundamental data, please link to the source page on deltascreener.com.

@@ -4,4 +4,4 @@ export {
   refreshGoogleSession,
   signOut,
   validateSession,
-} from './app5.js?v=20260704-dataquality'
+} from './app5.js?v=20260719-compare'

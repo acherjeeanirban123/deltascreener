@@ -3532,6 +3532,10 @@ async function route(req, env, ctx) {
     if (req.method === 'POST')   return saveScreen(req, env)
     if (req.method === 'DELETE') return deleteScreen(req, env)
   }
+  // Public community screens — anonymized (never exposes user_id/email/name).
+  if (path === '/screens/public' && req.method === 'GET') return getPublicScreens(req, env)
+  const pubScreenMatch = path.match(/^\/screens\/public\/(\d+)$/)
+  if (pubScreenMatch && req.method === 'GET') return getPublicScreen(pubScreenMatch[1], env)
   if (path === '/user/preferences') {
     if (req.method === 'GET')    return getUserPreferences(req, env)
     if (req.method === 'POST')   return saveUserPreferences(req, env)
@@ -3847,6 +3851,34 @@ async function removeFromWatchlist(req, env) {
   if (env.SP_DB) await dbRun(env, 'DELETE FROM watchlists WHERE user_id=? AND ticker=?', [user.id, clean])
   return j({ ok: true })
 }
+// ── Public community screens (anonymized) ────────────────────────────────
+// Deduped by query text so ten users saving the same screen make one page.
+// Only id, name, query, created_at are ever returned — no user data.
+async function getPublicScreens(req, env) {
+  await ensureUserDataSchema(env)
+  if (!env.SP_DB) return j({ screens: [], total: 0, page: 1, pages: 0 })
+  const url = new URL(req.url)
+  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
+  const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '24', 10) || 24))
+  const QUALITY = "length(trim(query)) > 5 AND length(trim(name)) > 2"
+  const totalRow = await dbGet(env, `SELECT COUNT(DISTINCT lower(trim(query))) AS c FROM saved_screens WHERE ${QUALITY}`, []).catch(() => null)
+  const total = totalRow?.c || 0
+  const screens = await dbAll(env, `
+    SELECT MIN(id) AS id, name, query, MIN(created_at) AS created_at
+    FROM saved_screens WHERE ${QUALITY}
+    GROUP BY lower(trim(query))
+    ORDER BY MIN(id) DESC
+    LIMIT ? OFFSET ?`, [limit, (page - 1) * limit]).catch(() => [])
+  return j({ screens, total, page, pages: Math.ceil(total / limit) })
+}
+async function getPublicScreen(id, env) {
+  await ensureUserDataSchema(env)
+  if (!env.SP_DB) return j({ error: 'Not found' }, 404)
+  const screen = await dbGet(env, 'SELECT id, name, query, created_at FROM saved_screens WHERE id=? AND length(trim(query)) > 5 LIMIT 1', [Number(id)]).catch(() => null)
+  if (!screen) return j({ error: 'Not found' }, 404)
+  return j({ screen })
+}
+
 async function getSavedScreens(req, env) {
   const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
   await ensureUserDataSchema(env)
@@ -3855,6 +3887,21 @@ async function getSavedScreens(req, env) {
     .catch(() => dbAll(env, 'SELECT * FROM saved_screens WHERE user_id=? ORDER BY created_at DESC', [user.id]))
   return j({ screens })
 }
+// ── Free-tier limits (Pro = unlimited) ───────────────────────────────────
+const FREE_MAX_SAVED_SCREENS = 3
+const FREE_MAX_ALERTS = 2
+
+// Pro status lives in the `pro_users` table (deltascreener-blog D1, binding DB),
+// written by the Gumroad ping webhook. Same source of truth as /api/pro-status.
+async function isProByEmail(env, email) {
+  const e = String(email || '').toLowerCase().trim()
+  if (!e || !env.DB) return false
+  try {
+    const row = await env.DB.prepare('SELECT status FROM pro_users WHERE email=? LIMIT 1').bind(e).first()
+    return row?.status === 'active'
+  } catch { return false }
+}
+
 async function saveScreen(req, env) {
   const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
   await ensureUserDataSchema(env)
@@ -3868,6 +3915,11 @@ async function saveScreen(req, env) {
       await dbRun(env, 'UPDATE saved_screens SET updated_at=datetime(\'now\') WHERE id=? AND user_id=?', [existing.id, user.id])
         .catch(() => null)
       return j({ ok: true, id: existing.id, deduped: true })
+    }
+    // Free-tier cap: 3 saved screens. Pro = unlimited. (Updates above are always allowed.)
+    const countRow = await dbGet(env, 'SELECT COUNT(*) AS c FROM saved_screens WHERE user_id=?', [user.id]).catch(() => null)
+    if ((countRow?.c || 0) >= FREE_MAX_SAVED_SCREENS && !(await isProByEmail(env, user.email))) {
+      return j({ error: 'upgrade_required', feature: 'saved_screens', limit: FREE_MAX_SAVED_SCREENS, message: `Free plan includes ${FREE_MAX_SAVED_SCREENS} saved screens. Upgrade to Pro for unlimited saved screens.` }, 402)
     }
     await dbRun(env, 'INSERT INTO saved_screens (user_id,name,query,updated_at) VALUES (?,?,?,datetime(\'now\'))', [user.id, name, query])
       .catch(() => dbRun(env, 'INSERT INTO saved_screens (user_id,name,query) VALUES (?,?,?)', [user.id, name, query]))
@@ -3906,6 +3958,11 @@ async function getUserAlerts(req, env) {
 async function createAlert(req, env) {
   const user = await getAuthUser(req, env); if (!user) return j({ error: 'Unauthorized' }, 401)
   await ensureUserDataSchema(env)
+  // Free-tier cap: 2 active alerts. Pro = unlimited.
+  const alertCount = await dbGet(env, 'SELECT COUNT(*) AS c FROM alerts WHERE user_id=?', [user.id]).catch(() => null)
+  if ((alertCount?.c || 0) >= FREE_MAX_ALERTS && !(await isProByEmail(env, user.email))) {
+    return j({ error: 'upgrade_required', feature: 'alerts', limit: FREE_MAX_ALERTS, message: `Free plan includes ${FREE_MAX_ALERTS} active alerts. Upgrade to Pro for unlimited alerts.` }, 402)
+  }
   const b = await req.json().catch(() => ({}))
   const type = String(b?.type || '').trim()
   if (!ALERT_TYPES.includes(type)) return j({ error: 'invalid type' }, 400)

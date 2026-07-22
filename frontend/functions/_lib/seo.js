@@ -1,4 +1,4 @@
-// v20260704-dataquality
+// v20260719-compare
 // Shared quality floors applied to screen pages: a market-cap floor keeps
 // micro-cap shells with junk fundamentals out, and a non-negative D/E
 // requirement excludes negative-equity companies whose ROE is meaningless.
@@ -514,6 +514,7 @@ export const SCREEN_LOOKUP = Object.fromEntries(SCREEN_PAGES.map(screen => [scre
 // Live set mirrors the D1 `blog_posts` table (what /blog actually links).
 // Keep in sync with the database; the sitemap derives from this list.
 export const BLOG_POSTS = [
+  { slug: 'buffett-checklist-only-20-us-stocks-pass-2026', title: "We Ran Buffett's Checklist on 4,907 US Stocks. Only 20 Passed.", description: 'We screened every US stock through seven Buffett-style quality filters — high sustained ROE, fat margins, low debt. Just 0.4% passed. Here are all 20 names, with the data.', cluster: 'Value Investing', published_at: '2026-07-19' },
   { slug: 'debt-to-equity-ratio-stock-screening', title: 'Debt-to-Equity Ratio: How to Screen for Low-Debt Stocks', description: 'Learn how to use the debt-to-equity ratio to screen for financially sound, low-debt stocks — and why balance sheet strength matters across industries.', cluster: 'Financial Metrics', published_at: '2026-06-19' },
   { slug: 'debt-to-equity-ratio-stock-screening-guide', title: 'Debt-to-Equity Ratio: How to Screen for Financially Sound Stocks', description: 'A practical guide to screening stocks by debt-to-equity ratio. Understand what a healthy D/E looks like by sector and how to filter for resilient companies.', cluster: 'Financial Metrics', published_at: '2026-06-18' },
   { slug: 'how-to-screen-healthcare-stocks-filters', title: 'How to Screen for Healthcare Stocks in Any Market', description: 'Learn which filters matter most when screening healthcare stocks — margins, R&D, pipeline risk, and valuation — to find quality names in any market.', cluster: 'Sector Investing', published_at: '2026-06-17' },
@@ -791,7 +792,7 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-  <link rel="stylesheet" href="/src/styles.css?v=20260704-dataquality" />
+  <link rel="stylesheet" href="/src/styles.css?v=20260719-compare" />
   <style>
     :root { color-scheme: light; }
     body{margin:0;background:linear-gradient(180deg,#f5f6f0 0%,#fbfbf8 30%,#ffffff 100%);color:#14202b;font-family:Inter,system-ui,sans-serif}
@@ -1050,6 +1051,27 @@ export function renderStocksHub() {
   })
 }
 
+// Prebuilt screener detail pages (/screeners/:slug) — keep in sync with
+// PREBUILT_SCREENS in frontend/src/app5.js (slug = screenSlug(name)).
+const PREBUILT_SCREENER_SLUGS = ['undervalued-stocks', 'low-pe-stocks', 'low-pb-stocks', 'cheap-stocks-to-buy-now', 'best-value-stocks', 'undervalued-growth-stocks', 'stocks-below-intrinsic-value', 'low-peg-ratio-stocks', 'undervalued-large-cap-stocks', 'undervalued-dividend-stocks', 'growth-stocks', 'high-growth-stocks', 'best-growth-stocks-to-buy', 'small-cap-growth-stocks', 'growth-technology-stocks', 'high-revenue-growth-stocks', 'high-eps-growth-stocks', 'aggressive-small-caps', 'mid-cap-growth-stocks', 'fastest-growing-stocks', 'high-dividend-stocks', 'dividend-stocks', 'best-dividend-stocks', 'dividend-aristocrats', 'dividend-kings', 'monthly-dividend-stocks', 'high-yield-dividend-stocks', 'safe-dividend-stocks', 'dividend-growth-stocks', 'reit-dividend-stocks', 'dividend-stocks-under-5', 'dividend-stocks-under-10', 'low-debt-dividend-stocks', 'dividend-payout-ratio-stocks', 'blue-chip-dividend-stocks', 's-p-500-dividend-stocks', 'high-roe-stocks', 'quality-stocks', 'wide-moat-stocks', 'low-debt-stocks', 'high-profit-margin-stocks', 'high-free-cash-flow-stocks', 'strong-balance-sheet-stocks', 'high-roa-stocks', 'companies-with-highest-roe', 'low-debt-high-roe-stocks', '52-week-high-stocks', 'stocks-near-52-week-high', '52-week-low-stocks', 'oversold-stocks', 'overbought-stocks', 'momentum-stocks', 'breakout-stocks', 'most-active-stocks', 'day-gainers-stocks', 'day-losers-stocks', 'high-volume-stocks', 'stocks-with-unusual-volume', 'penny-stocks', 'penny-stocks-to-buy', 'best-penny-stocks', 'small-cap-stocks', 'large-cap-stocks', 'blue-chip-stocks', 'stocks-under-5', 'stocks-under-10', 'stocks-under-1', 'mega-cap-stocks', 'analyst-strong-buy-stocks', 'stocks-with-insider-buying', 'most-institutionally-bought-stocks', 'stock-buybacks-list', 'hedge-fund-favorite-stocks', 'stocks-warren-buffett-owns', 'recently-upgraded-stocks', 'rising-institutional-ownership-stocks', 'most-shorted-stocks', 'high-short-interest-stocks', 'low-volatility-stocks', 'high-beta-stocks', 'defensive-stocks', 'recession-proof-stocks', 'safe-stocks-to-buy', 'ai-stocks-to-buy', 'semiconductor-stocks', 'ev-stocks', 'tech-stocks-to-buy', 'energy-stocks', 'healthcare-stocks-to-buy', 'bank-stocks', 'cybersecurity-stocks', 'clean-energy-stocks', 'quantum-computing-stocks', 'stock-screener-starter', 'free-stock-screener-picks', 'best-stock-screener-combo', 'nasdaq-style-tech-screen', 'stocks-to-buy-now', 'best-stocks-to-buy-right-now', 'how-to-find-undervalued-stocks']
+
+// Curated comparison pairs (/compare/:a-vs-:b) — high-search-volume matchups.
+// Any valid pair works dynamically; these are the ones in the sitemap.
+export const COMPARE_PAIRS = [
+  'amd-vs-nvda', 'amd-vs-intc', 'nvda-vs-intc', 'nvda-vs-avgo', 'nvda-vs-tsm', 'amd-vs-avgo',
+  'aapl-vs-msft', 'msft-vs-googl', 'googl-vs-meta', 'aapl-vs-googl', 'amzn-vs-googl', 'msft-vs-amzn',
+  'v-vs-ma', 'jpm-vs-bac', 'jpm-vs-wfc', 'gs-vs-ms', 'axp-vs-v', 'pypl-vs-v',
+  'ko-vs-pep', 'wmt-vs-tgt', 'wmt-vs-cost', 'hd-vs-low', 'mcd-vs-sbux', 'nke-vs-lulu',
+  'tsla-vs-f', 'tsla-vs-gm', 'f-vs-gm', 'tsla-vs-rivn', 'uber-vs-lyft', 'abnb-vs-bkng',
+  'xom-vs-cvx', 'cop-vs-xom', 'oxy-vs-cvx',
+  'unh-vs-cvs', 'pfe-vs-mrk', 'lly-vs-pfe', 'jnj-vs-pfe', 'abbv-vs-mrk',
+  't-vs-vz', 'tmus-vs-vz', 'dis-vs-nflx', 'cmcsa-vs-dis',
+  'crm-vs-orcl', 'adbe-vs-crm', 'ibm-vs-orcl', 'csco-vs-avgo', 'qcom-vs-avgo', 'mu-vs-nvda',
+  'ba-vs-lmt', 'cat-vs-de', 'ge-vs-hon', 'ups-vs-fdx',
+  'pg-vs-ul', 'pg-vs-cl', 'cost-vs-tgt', 'amzn-vs-wmt',
+  'pltr-vs-snow', 'sofi-vs-hood', 'coin-vs-hood', 'shop-vs-amzn',
+]
+
 // renderSitemap now only covers static + screen + blog pages.
 // Stock pages (~5k) are in /sitemap-stocks.xml (dynamic, fetches all tickers from the API).
 // /sitemap.xml is now a sitemap index pointing to both.
@@ -1066,6 +1088,19 @@ export function renderSitemap() {
     changefreq: 'daily',
     priority: '0.7',
   }))
+  const screenerUrls = [
+    { loc: `${SITE_ORIGIN}/screeners`, changefreq: 'weekly', priority: '0.8' },
+    ...PREBUILT_SCREENER_SLUGS.map(slug => ({
+      loc: `${SITE_ORIGIN}/screeners/${slug}`,
+      changefreq: 'daily',
+      priority: '0.7',
+    })),
+  ]
+  const compareUrls = COMPARE_PAIRS.map(pair => ({
+    loc: `${SITE_ORIGIN}/compare/${pair}`,
+    changefreq: 'daily',
+    priority: '0.6',
+  }))
   // Derived from the single BLOG_POSTS source of truth so the sitemap and the
   // live /blog index can never drift apart again.
   const blogUrls = [
@@ -1077,7 +1112,7 @@ export function renderSitemap() {
       priority: '0.6',
     })),
   ]
-  const allUrls = [...staticUrls, ...screenUrls, ...blogUrls]
+  const allUrls = [...staticUrls, ...screenUrls, ...screenerUrls, ...compareUrls, ...blogUrls]
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allUrls.map(u => `  <url>

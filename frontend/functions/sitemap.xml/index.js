@@ -15,6 +15,10 @@ export async function onRequestGet() {
     <loc>${SITE_ORIGIN}/sitemap-stocks.xml</loc>
     <lastmod>${now}</lastmod>
   </sitemap>
+  <sitemap>
+    <loc>${SITE_ORIGIN}/sitemap-community.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
 </sitemapindex>`
   return xmlResponse(xml)
 }

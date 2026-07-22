@@ -32,7 +32,7 @@ export function renderSpaShell({ title, description, canonicalUrl, keywords = ''
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/src/styles.css?v=20260704-dataquality" />
+  <link rel="stylesheet" href="/src/styles.css?v=20260719-compare" />
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-40Y2P275ZZ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -45,7 +45,7 @@ export function renderSpaShell({ title, description, canonicalUrl, keywords = ''
 <body>
   <script>try{document.body.setAttribute('data-theme',localStorage.getItem('theme')||'light')}catch(e){}</script>
   <div id="app">${shellContent}</div>
-  <script type="module" src="/src/main2.js?v=20260704-dataquality"></script>
+  <script type="module" src="/src/main2.js?v=20260719-compare"></script>
 </body>
 </html>`
 }
