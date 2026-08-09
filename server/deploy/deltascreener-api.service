@@ -1,0 +1,45 @@
+[Unit]
+Description=DeltaScreener API (Node)
+Documentation=https://deltascreener.com
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=deltascreener
+Group=deltascreener
+WorkingDirectory=/opt/deltascreener/server
+EnvironmentFile=/opt/deltascreener/server/.env
+ExecStart=/usr/bin/node index.js
+
+Restart=always
+RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=120
+
+# Logs go to the journal:  journalctl -u deltascreener-api -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ds-api
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/deltascreener
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# ── Resource limits ─────────────────────────────────────────────────────────
+# The box has 1 GB RAM total and must also fit Postgres + Redis + Nginx.
+# Capping the API keeps a runaway request from OOM-killing the database.
+MemoryMax=400M
+MemoryHigh=320M
+
+[Install]
+WantedBy=multi-user.target

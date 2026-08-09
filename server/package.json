@@ -1,0 +1,30 @@
+{
+  "name": "deltascreener-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DeltaScreener API — standalone Node server (ported from Cloudflare Worker)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "start:cron": "node cron.js",
+    "dev": "node --watch index.js",
+    "migrate": "node migrate/apply-schema.js",
+    "import": "node migrate/import-d1.js",
+    "verify": "node migrate/verify.js",
+    "test": "node migrate/test-translate.js && node migrate/test-bridge.js",
+    "test:sql": "node migrate/test-translate.js",
+    "test:bridge": "node migrate/test-bridge.js"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.12.0",
+    "redis": "^4.7.0"
+  }
+}

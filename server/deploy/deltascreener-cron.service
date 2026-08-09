@@ -1,0 +1,41 @@
+[Unit]
+Description=DeltaScreener scheduled data refresh (replaces Cloudflare cron trigger)
+After=network-online.target postgresql.service redis-server.service deltascreener-api.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=deltascreener
+Group=deltascreener
+WorkingDirectory=/opt/deltascreener/server
+EnvironmentFile=/opt/deltascreener/server/.env
+ExecStart=/usr/bin/node cron.js
+
+Restart=always
+RestartSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ds-cron
+
+# ── Hardening ───────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/deltascreener
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+
+# ── Resource limits ─────────────────────────────────────────────────────────
+# The refresh job batches hundreds of FMP responses; without a cap it is the
+# most likely thing to OOM a 1 GB box. Keep it below the API's ceiling so that
+# if something has to die, it is the background job and not the live API.
+MemoryMax=300M
+MemoryHigh=240M
+CPUWeight=50
+
+[Install]
+WantedBy=multi-user.target
