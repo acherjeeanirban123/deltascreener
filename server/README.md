@@ -47,12 +47,44 @@ server/
 
 ## Test status
 
-Both suites pass locally with no database required:
+```
+npm test                     # no database required
+  ✅ 19 SQL translation tests
+  ✅  8 HTTP bridge tests    (routing, CORS, POST bodies, admin auth)
+
+npm run verify               # against the migrated database
+  ✅ 13 tables, row counts match D1 exactly
+
+node migrate/compare-prod.js --tickers AAPL,MSFT,NVDA,GOOGL,AMZN,JPM,XOM,KO
+  ✅ 23/23 endpoints byte-identical to production
+```
+
+## Dialect bugs found during migration
+
+Each of these returned *wrong data silently* rather than erroring — worth
+knowing about if you touch `adapters/d1-postgres.js`:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `screenableTickers: 0` | SQLite exposes `json_each` as a virtual **table** (`json_each.value`); Postgres has a set-returning function | alias it `AS json_each(value)` |
+| `/search?q=apple` returned 2 rows instead of 4 | SQLite `LIKE` is case-insensitive, Postgres `LIKE` is not | translate `LIKE` → `ILIKE` |
+| `{"total":"2000"}` instead of `{"total":2000}` | node-postgres returns `int8`/`numeric` as strings | `pg.types.setTypeParser` |
+| 11 rows dropped from the import | D1 dumps encode newlines as `replace(str,'\n',char(10))`; the tuple regex broke on the nested parens | paren-aware scanner + `decodeValue()` |
+
+The last one is the dangerous class: it dropped rows *quietly*. `--parse` now
+fails loudly on any column/value mismatch instead of skipping the row.
+
+## Current deployment status
+
+**Live on `44.213.148.192` (AWS Lightsail).** Not yet receiving public traffic —
+it listens on `127.0.0.1:8787` only. Steps 1–6 below are done; steps 7–8
+(Nginx/TLS and cutover) are not.
 
 ```
-npm test
-  ✅ 15 SQL translation tests
-  ✅  8 HTTP bridge tests   (routing, CORS, POST bodies, admin auth)
+deltascreener-api    active    65 MB
+deltascreener-cron   active    47 MB   (*/15 * * * * UTC)
+postgres / redis / nginx        active
+14,560 stock_data · 4,909 universe rows — matches D1 exactly
 ```
 
 ## Deploying to the VPS

@@ -15,6 +15,29 @@ import pg from 'pg'
 const { Pool } = pg
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Type fidelity with D1
+//
+// node-postgres returns BIGINT (int8) and NUMERIC as *strings* to avoid
+// precision loss. D1/SQLite returned real numbers, so without this the API
+// would emit  {"total":"2000"}  where production emits  {"total":2000}  —
+// which silently breaks any arithmetic or strict comparison in the frontend.
+//
+// int8 values here are row counts and market caps (max ~1e13), far below
+// Number.MAX_SAFE_INTEGER (9e15), so Number() is lossless in practice.
+// A guard is kept for anything that would actually lose precision.
+// ─────────────────────────────────────────────────────────────────────────────
+const INT8 = 20, NUMERIC = 1700, FLOAT8 = 701, FLOAT4 = 700
+
+pg.types.setTypeParser(INT8, v => {
+  if (v === null) return null
+  const n = Number(v)
+  return Number.isSafeInteger(n) ? n : v   // keep as string if truly huge
+})
+pg.types.setTypeParser(NUMERIC, v => (v === null ? null : Number(v)))
+pg.types.setTypeParser(FLOAT8, v => (v === null ? null : Number(v)))
+pg.types.setTypeParser(FLOAT4, v => (v === null ? null : Number(v)))
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SQL dialect translation: SQLite (D1) → PostgreSQL
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -90,18 +113,71 @@ function translate(sql) {
   })
   // json_extract(col, '$')      → whole document
   s = s.replace(/json_extract\(\s*([^,]+?)\s*,\s*'\$'\s*\)/gi, '(($1)::jsonb)')
-  // json_each(x) → jsonb_array_elements(x)
-  s = s.replace(/json_each\(/gi, 'jsonb_array_elements(')
+  // json_each(x) → jsonb_array_elements((x)::jsonb) AS json_each(value)
+  //
+  // SQLite exposes json_each as a virtual TABLE, so the worker's queries say
+  //     FROM json_each(...) WHERE json_each.value IS NOT NULL
+  // Postgres has a set-returning function instead, which produces no such
+  // table name. Aliasing the result `AS json_each(value)` keeps every
+  // `json_each.value` reference in the original SQL valid and untouched.
+  //
+  // The ::jsonb cast is required because json_extract() above translates to
+  // `#>>` (which returns text); jsonb_array_elements needs real jsonb.
+  s = replaceJsonEach(s)
 
   // ── Misc functions ───────────────────────────────────────────────────────
   // SQLite's IFNULL is Postgres COALESCE
   s = s.replace(/\bIFNULL\(/gi, 'COALESCE(')
+
+  // LIKE → ILIKE.
+  // SQLite's LIKE is case-INSENSITIVE for ASCII; Postgres's is case-SENSITIVE.
+  // Left unfixed, /search?q=apple finds nothing for "Apple Inc." — it silently
+  // returns fewer results rather than erroring, so it is easy to miss.
+  // NOT LIKE is handled by the same substitution (NOT ILIKE stays valid).
+  s = s.replace(/\bLIKE\b/gi, 'ILIKE')
   // Integer division guard: SQLite `/` on ints truncates like Postgres — no change needed.
 
   // ── Upsert ───────────────────────────────────────────────────────────────
   // `excluded.` is identical in Postgres, no change needed.
 
   return s
+}
+
+/**
+ * Rewrite every `json_each(<expr>)` into
+ *     jsonb_array_elements((<expr>)::jsonb) AS json_each(value)
+ *
+ * Done with a paren-matching scanner rather than a regex, because <expr> is
+ * itself full of nested parentheses and quoted JSON paths.
+ */
+function replaceJsonEach(sql) {
+  let out = sql
+  let cursor = 0          // never rescan text we've already emitted —
+  let guard = 0           // the replacement itself contains "json_each(value)"
+  while (guard++ < 50) {
+    const rest = out.slice(cursor)
+    const m = /json_each\s*\(/i.exec(rest)
+    if (!m) break
+    m.index += cursor                           // shift back to absolute index
+    const open = m.index + m[0].length - 1      // index of '('
+    let depth = 0, inStr = false, close = -1
+    for (let i = open; i < out.length; i++) {
+      const c = out[i]
+      if (inStr) {
+        if (c === "'") { if (out[i + 1] === "'") { i++; continue } inStr = false }
+        continue
+      }
+      if (c === "'") { inStr = true; continue }
+      if (c === '(') depth++
+      else if (c === ')') { depth--; if (depth === 0) { close = i; break } }
+    }
+    if (close < 0) break                        // unbalanced — leave as-is
+    const inner = out.slice(open + 1, close)
+    const replacement = `jsonb_array_elements((${inner})::jsonb) AS json_each(value)`
+    out = out.slice(0, m.index) + replacement + out.slice(close + 1)
+    cursor = m.index + replacement.length       // resume past what we inserted
+  }
+  return out
 }
 
 /** Convert D1's `{ results, meta }` shape from a pg result. */

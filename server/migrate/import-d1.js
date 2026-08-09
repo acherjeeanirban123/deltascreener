@@ -40,29 +40,105 @@ const BATCH = Number(flag('--batch')) || 500
 // Step 2: parse a SQLite dump into NDJSON  { table, columns, values }
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Split a SQL VALUES tuple on commas that are not inside quotes. */
-function splitValues(raw) {
-  const out = []
-  let cur = ''
-  let inStr = false
+/**
+ * Extract the `(...)` tuples that follow VALUES.
+ *
+ * A regex cannot do this correctly: D1 dumps encode newlines as nested SQL
+ * function calls, e.g.
+ *     replace('a\nb', '\n', char(10))
+ * so tuples contain unbalanced-looking parentheses *and* quoted commas.
+ * This scanner tracks quote state and paren depth instead.
+ */
+function extractTuples(raw) {
+  const tuples = []
+  let depth = 0, start = -1, inStr = false
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i]
-    if (ch === "'") {
-      if (inStr && raw[i + 1] === "'") { cur += "'"; i++; continue }  // escaped ''
-      inStr = !inStr
+    if (inStr) {
+      if (ch === "'") {
+        if (raw[i + 1] === "'") { i++; continue }   // escaped ''
+        inStr = false
+      }
       continue
     }
-    if (ch === ',' && !inStr) { out.push(cur.trim()); cur = ''; continue }
-    cur += ch
+    if (ch === "'") { inStr = true; continue }
+    if (ch === '(') { if (depth === 0) start = i; depth++; continue }
+    if (ch === ')') {
+      depth--
+      if (depth === 0 && start >= 0) { tuples.push(raw.slice(start + 1, i)); start = -1 }
+    }
   }
-  out.push(cur.trim())
-  return out.map(v => {
-    if (!v.length) return null
-    if (v === 'NULL') return null
-    if (/^-?\d+$/.test(v)) return Number(v)
-    if (/^-?\d*\.\d+([eE][-+]?\d+)?$/.test(v)) return Number(v)
-    return v
-  })
+  return tuples
+}
+
+/**
+ * Decode a single SQL value expression into a JS value.
+ * Handles: NULL, numbers, quoted strings, X'..' blobs, char(n) and the
+ * replace(str, '\n', char(10)) wrapper D1 emits for multi-line text.
+ */
+function decodeValue(v) {
+  v = v.trim()
+  if (!v.length || v === 'NULL') return null
+
+  // replace(<expr>, <search>, <repl>) — used to re-insert newlines
+  const rep = v.match(/^replace\s*\(([\s\S]*)\)$/i)
+  if (rep) {
+    const parts = splitTopLevel(rep[1])
+    if (parts.length === 3) {
+      const subject = decodeValue(parts[0])
+      const search = decodeValue(parts[1])
+      const repl = decodeValue(parts[2])
+      if (typeof subject === 'string' && typeof search === 'string') {
+        return subject.split(String(search)).join(String(repl ?? ''))
+      }
+    }
+    return decodeValue(parts[0])
+  }
+
+  // char(10) / char(13) → the literal character
+  const ch = v.match(/^char\s*\(\s*(\d+)\s*\)$/i)
+  if (ch) return String.fromCharCode(Number(ch[1]))
+
+  // quoted string (with '' escapes)
+  if (v.startsWith("'") && v.endsWith("'") && v.length >= 2) {
+    return v.slice(1, -1).replace(/''/g, "'")
+  }
+
+  // hex blob
+  if (/^X'[0-9a-fA-F]*'$/i.test(v)) return Buffer.from(v.slice(2, -1), 'hex')
+
+  if (/^-?\d+$/.test(v)) return Number(v)
+  if (/^-?\d*\.\d+([eE][-+]?\d+)?$/.test(v)) return Number(v)
+  return v
+}
+
+/** Split on commas at paren-depth 0, ignoring commas inside quotes. */
+function splitTopLevel(raw) {
+  const out = []
+  let cur = '', depth = 0, inStr = false
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i]
+    if (inStr) {
+      cur += c
+      if (c === "'") {
+        if (raw[i + 1] === "'") { cur += "'"; i++; continue }
+        inStr = false
+      }
+      continue
+    }
+    if (c === "'") { inStr = true; cur += c; continue }
+    if (c === '(') depth++
+    if (c === ')') depth--
+    if (c === ',' && depth === 0) { out.push(cur); cur = ''; continue }
+    cur += c
+  }
+  out.push(cur)
+  return out
+}
+
+/** Split a SQL VALUES tuple into decoded JS values. */
+function splitValues(raw) {
+  return splitTopLevel(raw).map(decodeValue)
 }
 
 async function parseDump(inPath, outPath) {
@@ -71,6 +147,9 @@ async function parseDump(inPath, outPath) {
   let buffer = ''
   let count = 0
   const perTable = {}
+  const mismatches = []
+  // sqlite_sequence is SQLite-internal bookkeeping — Postgres has no such table.
+  const SKIP_TABLES = new Set(['sqlite_sequence'])
 
   for await (const line of rl) {
     const t = line.trim()
@@ -87,12 +166,19 @@ async function parseDump(inPath, outPath) {
     if (!m) continue
 
     const table = m[1]
+    if (SKIP_TABLES.has(table)) continue
     const columns = m[2] ? m[2].split(',').map(c => c.trim().replace(/["`]/g, '')) : null
 
     // A dump line can hold several tuples: VALUES (…),(…),(…)
-    const tuples = m[3].match(/\((?:[^()']|'(?:[^']|'')*')*\)/g) || []
-    for (const tup of tuples) {
-      const values = splitValues(tup.slice(1, -1))
+    for (const tup of extractTuples(m[3])) {
+      const values = splitValues(tup)
+      // Guard: a column/value mismatch means the tuple was mis-parsed. Fail
+      // loudly here rather than letting Postgres reject it mid-import.
+      if (columns && values.length !== columns.length) {
+        mismatches.push({ table, expected: columns.length, got: values.length,
+                          sample: tup.slice(0, 200) })
+        continue
+      }
       out.write(JSON.stringify({ table, columns, values }) + '\n')
       count++
       perTable[table] = (perTable[table] || 0) + 1
@@ -102,6 +188,15 @@ async function parseDump(inPath, outPath) {
   await new Promise(r => out.end(r))
   console.log(`[parse] wrote ${count} rows → ${outPath}`)
   for (const [t, n] of Object.entries(perTable)) console.log(`  ${t}: ${n}`)
+
+  if (mismatches.length) {
+    console.error(`\n[parse] ⚠️  ${mismatches.length} row(s) could not be parsed — these would be SILENTLY MISSING from the migration:`)
+    for (const m of mismatches.slice(0, 5)) {
+      console.error(`  ${m.table}: expected ${m.expected} values, got ${m.got}`)
+      console.error(`    ${m.sample}`)
+    }
+    process.exitCode = 1
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

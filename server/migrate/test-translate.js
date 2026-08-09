@@ -57,9 +57,36 @@ check("json_extract($.key) → #>>",
 check('nested json path',
   translate("SELECT json_extract(v, '$.a.b.c') FROM t"),
   ["'{a,b,c}'"])
-check('json_each → jsonb_array_elements',
+check('json_each → jsonb_array_elements with table alias',
   translate("SELECT * FROM json_each(COALESCE(json_extract(financials,'$.income'),'[]'))"),
-  ['jsonb_array_elements'], ['json_each('])
+  ['jsonb_array_elements', '::jsonb) AS json_each(value)'])
+
+// Regression: SQLite exposes json_each as a virtual TABLE, so the worker
+// references `json_each.value`. Without the alias this silently returned 0
+// rows in Postgres, which showed up as screenableTickers=0 on /admin/status.
+check('json_each.value reference stays valid (real STOCK_FINANCIAL_READY_SQL shape)',
+  translate(`EXISTS (
+    SELECT 1
+    FROM json_each(COALESCE(json_extract((CASE WHEN d.financials IS NOT NULL AND d.financials<>'' THEN d.financials ELSE '{}' END), '$.income.revenue'), '[]'))
+    WHERE json_each.value IS NOT NULL
+      AND TRIM(CAST(json_each.value AS TEXT)) NOT IN ('', 'null')
+  )`),
+  ['jsonb_array_elements', 'AS json_each(value)', 'WHERE json_each.value IS NOT NULL'])
+
+check('two json_each in one statement both rewritten',
+  translate(`SELECT (SELECT COUNT(1) FROM json_each(json_extract(a,'$.x')) WHERE json_each.value IS NOT NULL),
+                    (SELECT COUNT(1) FROM json_each(json_extract(b,'$.y')) WHERE json_each.value IS NOT NULL)`),
+  ['jsonb_array_elements'], ['FROM json_each('])
+
+console.log('\nCase sensitivity')
+// SQLite LIKE is case-insensitive, Postgres LIKE is not. Without ILIKE,
+// /search?q=apple silently returned 2 results instead of 4.
+check('LIKE → ILIKE',
+  translate("SELECT * FROM t WHERE u.ticker LIKE ? OR u.name LIKE ?"),
+  ['ILIKE'], [' LIKE '])
+check('NOT LIKE → NOT ILIKE',
+  translate("SELECT * FROM t WHERE name NOT LIKE '%x%'"),
+  ['NOT ILIKE'])
 
 console.log('\nPRAGMA')
 check('PRAGMA table_info → information_schema',
