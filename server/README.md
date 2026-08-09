@@ -76,16 +76,39 @@ fails loudly on any column/value mismatch instead of skipping the row.
 
 ## Current deployment status
 
-**Live on `44.213.148.192` (AWS Lightsail).** Not yet receiving public traffic —
-it listens on `127.0.0.1:8787` only. Steps 1–6 below are done; steps 7–8
-(Nginx/TLS and cutover) are not.
+**Live at https://api-vps.deltascreener.com** (AWS Lightsail, `44.213.148.192`),
+behind Cloudflare's proxy with a Let's Encrypt certificate.
+
+Steps 1–7 below are done. **Only the cutover (step 8) remains** — the frontend
+still points at the Cloudflare Worker, so production is untouched and this
+endpoint carries no user traffic yet.
 
 ```
 deltascreener-api    active    65 MB
 deltascreener-cron   active    47 MB   (*/15 * * * * UTC)
 postgres / redis / nginx        active
 14,560 stock_data · 4,909 universe rows — matches D1 exactly
+TLS valid to 2026-11-07, auto-renewing via certbot timer
 ```
+
+Verified identical to production on every run:
+
+```
+node migrate/compare-prod.js --local https://api-vps.deltascreener.com
+  ✅ 14/14 endpoints identical (also 23/23 over a wider ticker set)
+```
+
+### Infrastructure notes
+
+- **Lightsail firewall** opens 22/80 only by default. Port **443 had to be added
+  manually** in Networking → Firewall rules; without it, TLS times out even
+  though nginx is listening and certbot succeeded (certbot only needs :80).
+- **Cloudflare proxy is ON** for `api-vps` (DDoS protection, hides the origin
+  IP). This is safe because the zone's SSL mode is **Full** — on *Flexible* the
+  origin's HTTP→HTTPS redirect would cause an infinite redirect loop.
+- Certbot renews via HTTP-01 on port 80, which Cloudflare passes through. If a
+  future renewal fails, temporarily set the record to "DNS only" and re-run
+  `sudo certbot renew`.
 
 ## Deploying to the VPS
 
