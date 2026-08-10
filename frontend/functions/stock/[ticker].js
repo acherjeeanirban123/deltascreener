@@ -2,7 +2,7 @@
 import { renderSpaShell, SITE_ORIGIN } from '../_lib/spa-shell.js'
 
 const API_ORIGINS = [
-  'https://api.deltascreener.com',
+  'https://api-vps.deltascreener.com',
   'https://screenerpro1-api.acherjeeanirban.workers.dev',
 ]
 

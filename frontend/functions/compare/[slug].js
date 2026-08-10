@@ -3,7 +3,7 @@
 import { renderSpaShell, SITE_ORIGIN } from '../_lib/spa-shell.js'
 import { COMPARE_PAIRS } from '../_lib/seo.js'
 
-const API = 'https://api.deltascreener.com'
+const API = 'https://api-vps.deltascreener.com'
 
 const METRIC_ROWS = [
   // [label, key, source, format, betterDirection] — direction: 'low' | 'high' | null

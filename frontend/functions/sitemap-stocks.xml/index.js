@@ -4,7 +4,7 @@ import { xmlResponse } from '../_lib/seo.js'
 
 const SITE_ORIGIN = 'https://deltascreener.com'
 const API_ORIGINS = [
-  'https://api.deltascreener.com',
+  'https://api-vps.deltascreener.com',
   'https://screenerpro1-api.acherjeeanirban.workers.dev',
 ]
 const PAGE_SIZE = 100

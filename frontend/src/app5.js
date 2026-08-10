@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 const API = (() => {
   const host = location.hostname || ''
-  if (host === 'deltascreener.com' || host.endsWith('.deltascreener.com')) return 'https://api.deltascreener.com'
+  if (host === 'deltascreener.com' || host.endsWith('.deltascreener.com')) return 'https://api-vps.deltascreener.com'
   return 'https://screenerpro1-api.acherjeeanirban.workers.dev'
 })()
 const GCID = '1062200569141-0vik7idoi4skecsh8dii6nksmg80afrv.apps.googleusercontent.com'
@@ -1354,6 +1354,7 @@ export function renderHeader() {
         <a href="${routeHref('/')}" data-route="/" onclick="navigate('/');return false" class="${path === '/' ? 'active' : ''}">Home</a>
         <a href="${routeHref('/screener')}" data-route="/screener" onclick="navigate('/screener');return false" class="${path === '/screener' ? 'active' : ''}">Screener</a>
         <a href="${routeHref('/screeners')}" data-route="/screeners" onclick="navigate('/screeners');return false" class="${path === '/screeners' || path.startsWith('/screeners/') ? 'active' : ''}">Screens</a>
+        <a href="/stocks" class="${path === '/stocks' || path.startsWith('/stocks/') ? 'active' : ''}" title="Stock screener pages" aria-label="Stocks">Stocks</a>
         <a href="${routeHref('/watchlist')}" data-route="/watchlist" onclick="navigate('/watchlist');return false" class="${path === '/watchlist' ? 'active' : ''}">Watchlist</a>
         <a href="${routeHref('/alerts')}" data-route="/alerts" onclick="navigate('/alerts');return false" class="${path === '/alerts' ? 'active' : ''}">Alerts</a>
         <a href="/blog" class="nav-blog-link${path === '/blog' || path.startsWith('/blog/') ? ' active' : ''}" title="Blog" aria-label="Blog">

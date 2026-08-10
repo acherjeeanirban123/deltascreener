@@ -1,7 +1,7 @@
 // Screener page — SSR for Google + SPA shell for interactive use
 import { renderSpaShell, SITE_ORIGIN } from './_lib/spa-shell.js'
 
-const API = 'https://api.deltascreener.com'
+const API = 'https://api-vps.deltascreener.com'
 
 // Default preset shown on plain /screener — real stocks Google can read
 const DEFAULT_CONDITIONS = [

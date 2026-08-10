@@ -7,7 +7,7 @@ const POSITIVE_EQUITY = { metric: 'debtToEquity', op: '>=', value: 0 }
 const ROE_SANITY_CAP = { metric: 'roe', op: '<=', value: 300 }
 const SITE_ORIGIN = 'https://deltascreener.com'
 const API_FALLBACKS = [
-  'https://api.deltascreener.com',
+  'https://api-vps.deltascreener.com',
   'https://screenerpro1-api.acherjeeanirban.workers.dev',
 ]
 
@@ -834,6 +834,18 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
     .seo-btn-secondary{background:#fff;color:#14202b;border:1px solid rgba(208,214,222,.95)}
     .seo-faq-item + .seo-faq-item{margin-top:14px}
     .seo-muted{color:#6b7280;font-size:14px}
+    .seo-sitebar{background:#fff;border-bottom:1px solid rgba(208,214,222,.95)}
+    .seo-sitebar-inner{max-width:1180px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+    .seo-sitebar-logo{font-family:"IBM Plex Serif",Georgia,serif;font-weight:700;font-size:18px;color:#14202b;text-decoration:none;letter-spacing:-.02em}
+    .seo-sitebar-logo .accent{color:#2563eb}
+    .seo-sitebar-links{display:flex;gap:18px;flex-wrap:wrap}
+    .seo-sitebar-links a{color:#55606d;text-decoration:none;font-size:14px;font-weight:600}
+    .seo-sitebar-links a:hover{color:#2563eb}
+    .seo-sitefooter{border-top:1px solid rgba(208,214,222,.95);margin-top:40px}
+    .seo-sitefooter-inner{max-width:1180px;margin:0 auto;padding:24px 16px;display:flex;flex-wrap:wrap;gap:16px 24px;align-items:center;justify-content:space-between;font-size:13px;color:#6b7280}
+    .seo-sitefooter-links{display:flex;flex-wrap:wrap;gap:16px}
+    .seo-sitefooter-links a{color:#6b7280;text-decoration:none}
+    .seo-sitefooter-links a:hover{color:#2563eb}
     @media (max-width: 920px){
       .seo-hero,.seo-sections{grid-template-columns:1fr}
     }
@@ -841,7 +853,35 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 </head>
 <body>
+  <div class="seo-sitebar">
+    <div class="seo-sitebar-inner">
+      <a class="seo-sitebar-logo" href="/">DELTA<span class="accent">SCREENER</span></a>
+      <nav class="seo-sitebar-links" aria-label="Site">
+        <a href="/screener">Screener</a>
+        <a href="/screeners">Screens</a>
+        <a href="/stocks">Stocks</a>
+        <a href="/blog">Blog</a>
+        <a href="/news">News</a>
+      </nav>
+    </div>
+  </div>
 ${body}
+  <footer class="seo-sitefooter">
+    <div class="seo-sitefooter-inner">
+      <span>© ${new Date().getFullYear()} DeltaScreener</span>
+      <nav class="seo-sitefooter-links" aria-label="Footer">
+        <a href="/">Home</a>
+        <a href="/screener">Screener</a>
+        <a href="/screeners">Screens</a>
+        <a href="/stocks">Stocks</a>
+        <a href="/blog">Blog</a>
+        <a href="/news">News</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </nav>
+    </div>
+  </footer>
 </body>
 </html>`
 }
