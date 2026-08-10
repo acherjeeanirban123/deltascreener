@@ -164,14 +164,44 @@ sudo certbot certificates
 sudo certbot renew --dry-run
 ```
 
-Renewal uses HTTP-01 on port 80, which Cloudflare passes through. If a renewal
-ever fails, set the `api-vps` DNS record to **DNS only** in Cloudflare, run
-`sudo certbot renew`, then switch it back to **Proxied**.
+Renewal uses HTTP-01 on port 80. Because the DNS record is **Proxied**, the
+challenge arrives via Cloudflare and passes the firewall.
 
-**Port 443 is open in two places** and both must stay open: ufw (`Nginx Full`)
-*and* the Lightsail firewall (Networking → Firewall rules). The Lightsail one
-defaults to 22/80 only — that is why HTTPS timed out on first setup even though
-nginx was listening correctly.
+> ⚠️ **Do NOT set the record to "DNS only" to fix a renewal.**
+> ufw now allows 80/443 *only from Cloudflare IP ranges*. With the proxy off,
+> Let's Encrypt connects to the origin directly and is **dropped** — the exact
+> opposite of the usual advice. If you must go DNS-only, first re-open the
+> ports (`sudo ufw allow 'Nginx Full'`), renew, then re-apply the Cloudflare
+> restriction (see below).
+
+**Port 443 must be open in two places** — ufw *and* the Lightsail firewall
+(Networking → Firewall rules). Lightsail defaults to 22/80 only; that is why
+HTTPS timed out on first setup even though nginx was listening correctly.
+
+### Origin lockdown (Cloudflare-only)
+
+80/443 accept traffic only from Cloudflare's published ranges, so nobody can
+bypass the proxy by hitting `44.213.148.192` directly. Verify:
+
+```bash
+sudo ufw status | grep -c '80,443'          # expect ~20 rules
+curl -m 8 http://44.213.148.192/health      # expect a timeout, not a response
+curl -s https://deltascreener.com/ -o /dev/null -w '%{http_code}\n'   # expect 200
+```
+
+> ⚠️ **Cloudflare occasionally adds IP ranges.** If a slice of traffic starts
+> 5xx-ing or timing out for no obvious reason, refresh the list — this is the
+> maintenance cost of the lockdown:
+
+```bash
+curl -fsS https://www.cloudflare.com/ips-v4 -o /tmp/cf4.txt
+curl -fsS https://www.cloudflare.com/ips-v6 -o /tmp/cf6.txt
+while read -r n; do [ -n "$n" ] && sudo ufw allow proto tcp from "$n" to any port 80,443; done < /tmp/cf4.txt
+while read -r n; do [ -n "$n" ] && sudo ufw allow proto tcp from "$n" to any port 80,443; done < /tmp/cf6.txt
+sudo ufw reload
+```
+
+To undo the lockdown entirely: `sudo ufw allow 'Nginx Full' && sudo ufw reload`.
 
 ---
 
@@ -215,6 +245,33 @@ A sudden jump means refreshes are writing degraded records.
 
 ## Rollback to Cloudflare
 
-The Worker at `api.deltascreener.com` is still live and still receiving its own
-data refreshes. Rolling back is repointing the frontend's API base URL back to
-it — no data migration required in that direction.
+**Production now runs on this box.** `deltascreener.com` calls
+`api-vps.deltascreener.com`, which is this server.
+
+The Cloudflare Worker at `api.deltascreener.com` is **still live and still
+refreshing its own D1 data**, so rollback needs no data migration.
+
+Partial safety net already in place: the SSR Pages Functions list the Worker as
+their second entry in `API_FALLBACKS`, so server-rendered pages fail over to
+Cloudflare automatically if this box is unreachable. The **browser-side SPA has
+no such fallback** — that path needs the rollback below.
+
+```bash
+# On your Mac
+cd "/Users/anirbanacherjee/Desktop/delta screener 1/Delta Screener"
+git revert 160e81a                 # "Cut over API to the VPS (Phase 5)"
+cd frontend
+CLOUDFLARE_API_TOKEN="<see SECRETS.md>" npx wrangler pages deploy . \
+  --project-name=deltascreener --branch=main --commit-dirty=true
+```
+
+Takes about a minute. Verify with:
+
+```bash
+curl -s https://deltascreener.com/src/app5.js?v=20260607-fixes | grep -o 'https://api[a-z-]*\.deltascreener\.com'
+```
+
+Should print `https://api.deltascreener.com` once rolled back.
+
+**Do not decommission the Worker or D1 yet** — they are both the rollback path
+and the only off-box copy of the data.
