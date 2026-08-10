@@ -1,0 +1,8 @@
+[Unit]
+Description=DeltaScreener API health probe
+After=deltascreener-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ds-healthcheck.sh
+SyslogIdentifier=ds-health

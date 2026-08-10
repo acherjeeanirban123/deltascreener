@@ -1,0 +1,14 @@
+[Unit]
+Description=DeltaScreener PostgreSQL backup
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ds-backup.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ds-backup
+# Backups are I/O heavy; keep them from starving the live API.
+Nice=10
+IOSchedulingClass=idle

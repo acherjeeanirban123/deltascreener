@@ -1,0 +1,13 @@
+[Unit]
+Description=Run DeltaScreener database backup daily
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# 03:20 UTC — outside US market hours, and offset from the :00/:15 refresh cron
+# so a backup never overlaps a data-refresh run on a 1 GB box.
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
