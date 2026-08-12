@@ -9,13 +9,13 @@ API: https://api-vps.deltascreener.com (Cloudflare-proxied) — still running, s
 Everything below was written for the AWS box; the same architecture (Node +
 Postgres + Redis + Nginx + systemd) was replicated on OVH via
 `ovh-bootstrap.sh`, so the triage steps apply to either host — just swap the
-IP/hostname. **Known gaps on the OVH box that exist on AWS and have not yet
-been ported over:** no `ds-backup.timer` (no automated Postgres dumps), no
-`ds-healthcheck.timer` (no watchdog auto-restart), and no Cloudflare-IP-only
-`ufw` lockdown (port 80/443 currently open to the whole internet, not just
-Cloudflare's ranges). The systemd memory caps (`MemoryMax=400M` for the API,
-`300M` for cron) were also copied as-is from the 1 GB AWS box even though OVH
-has 8 GB — safe, but overly conservative and worth raising.
+IP/hostname. `ds-backup.timer`, `ds-healthcheck.timer`, and the
+Cloudflare-IP-only `ufw` lockdown (see [Origin lockdown](#origin-lockdown-cloudflare-only))
+are all in place on OVH as of 2026-08-12, same as AWS.
+
+One real difference: the systemd memory caps (`MemoryMax=400M` for the API,
+`300M` for cron) were copied as-is from the 1 GB AWS box even though OVH has
+8 GB — safe, but overly conservative and worth raising.
 
 Written for the version of you that is looking at this during an incident.
 
@@ -195,12 +195,14 @@ HTTPS timed out on first setup even though nginx was listening correctly.
 
 ### Origin lockdown (Cloudflare-only)
 
-80/443 accept traffic only from Cloudflare's published ranges, so nobody can
-bypass the proxy by hitting `44.213.148.192` directly. Verify:
+In place on **both** boxes as of 2026-08-12. 80/443 accept traffic only from
+Cloudflare's published ranges, so nobody can bypass the proxy by hitting the
+origin IP directly. Verify (swap in whichever box's IP you're checking —
+`44.213.148.192` for AWS, `149.56.102.211` for OVH):
 
 ```bash
 sudo ufw status | grep -c '80,443'          # expect ~20 rules
-curl -m 8 http://44.213.148.192/health      # expect a timeout, not a response
+curl -m 8 http://<origin-ip>/health         # expect a timeout, not a response
 curl -s https://deltascreener.com/ -o /dev/null -w '%{http_code}\n'   # expect 200
 ```
 
