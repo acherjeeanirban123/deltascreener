@@ -89,7 +89,7 @@ export async function onRequestGet(context) {
     let communityTotal = 0
     let communityPages = 1
     try {
-      const res = await fetch(`https://api-vps.deltascreener.com/screens/public?page=${hubPage}&limit=24`, { signal: AbortSignal.timeout(6000) })
+      const res = await fetch(`https://api-ovh.deltascreener.com/screens/public?page=${hubPage}&limit=24`, { signal: AbortSignal.timeout(6000) })
       if (res.ok) {
         const data = await res.json()
         community = data.screens || []
@@ -149,7 +149,7 @@ export async function onRequestGet(context) {
       // Community screen — /screeners/:id/:slug — fetch the (anonymized) saved
       // screen from the API and parse its query server-side.
       try {
-        const apiRes = await fetch(`https://api-vps.deltascreener.com/screens/public/${communityMatch[1]}`, { signal: AbortSignal.timeout(6000) })
+        const apiRes = await fetch(`https://api-ovh.deltascreener.com/screens/public/${communityMatch[1]}`, { signal: AbortSignal.timeout(6000) })
         if (apiRes.ok) {
           const data = await apiRes.json()
           if (data?.screen?.query) {
@@ -197,7 +197,7 @@ export async function onRequestGet(context) {
         let total = 0
         try {
           if (!screen.conditions.length) throw new Error('no parseable conditions')
-          const apiRes = await fetch('https://api-vps.deltascreener.com/screener/custom', {
+          const apiRes = await fetch('https://api-ovh.deltascreener.com/screener/custom', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ conditions: screen.conditions, page: resultPage, limit: PAGE_SIZE, sort: { field: sortField, dir: sortDir } }),

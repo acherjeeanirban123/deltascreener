@@ -7,7 +7,7 @@ const POSITIVE_EQUITY = { metric: 'debtToEquity', op: '>=', value: 0 }
 const ROE_SANITY_CAP = { metric: 'roe', op: '<=', value: 300 }
 const SITE_ORIGIN = 'https://deltascreener.com'
 const API_FALLBACKS = [
-  'https://api-vps.deltascreener.com',
+  'https://api-ovh.deltascreener.com',
   'https://screenerpro1-api.acherjeeanirban.workers.dev',
 ]
 
@@ -792,7 +792,7 @@ function layout({ title, description, canonical, robots, body, jsonLd }) {
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-  <link rel="stylesheet" href="/src/styles.css?v=20260719-compare" />
+  <link rel="stylesheet" href="/src/styles.css?v=20260812-ovh" />
   <style>
     :root { color-scheme: light; }
     body{margin:0;background:linear-gradient(180deg,#f5f6f0 0%,#fbfbf8 30%,#ffffff 100%);color:#14202b;font-family:Inter,system-ui,sans-serif}

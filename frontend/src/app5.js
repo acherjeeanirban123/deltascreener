@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 const API = (() => {
   const host = location.hostname || ''
-  if (host === 'deltascreener.com' || host.endsWith('.deltascreener.com')) return 'https://api-vps.deltascreener.com'
+  if (host === 'deltascreener.com' || host.endsWith('.deltascreener.com')) return 'https://api-ovh.deltascreener.com'
   return 'https://screenerpro1-api.acherjeeanirban.workers.dev'
 })()
 const GCID = '1062200569141-0vik7idoi4skecsh8dii6nksmg80afrv.apps.googleusercontent.com'

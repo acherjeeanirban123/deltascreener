@@ -1,1 +1,1 @@
-export { renderHeader, renderFooter } from '../app5.js?v=20260719-compare'
+export { renderHeader, renderFooter } from '../app5.js?v=20260812-ovh'

@@ -36,4 +36,10 @@ Stored in SECRETS.md (gitignored — never committed).
 - API (fallback): https://screenerpro1-api.acherjeeanirban.workers.dev
 
 ## Version strings
-CSS/JS cache-busted with `?v=20260607-fixes`
+CSS/JS cache-busted with `?v=20260812-ovh`
+
+## Backend topology (as of 2026-08-12)
+- Primary API origin: OVH VPS (`api-ovh.deltascreener.com`, 149.56.102.211) — Node + Postgres + Redis + Nginx, systemd-managed. See `server/README.md` and `server/RUNBOOK.md`.
+- Rollback origin: AWS Lightsail (`api-vps.deltascreener.com`, 44.213.148.192) — kept running as fallback. To roll back, revert `api-ovh.deltascreener.com` → `api-vps.deltascreener.com` in the frontend files listed below and redeploy.
+- Frontend files that hardcode the API origin (grep for `api-ovh.deltascreener.com` to find all): `frontend/src/app5.js`, `frontend/functions/[[catchall]].js`, `frontend/functions/_lib/seo.js`, `frontend/functions/blog/[slug].js`, `frontend/functions/compare/[slug].js`, `frontend/functions/screener.js`, `frontend/functions/sitemap-community.xml/index.js`, `frontend/functions/sitemap-stocks.xml/index.js`, `frontend/functions/stock/[ticker].js`.
+- Cloudflare Worker/D1 (original backend) is retired from serving traffic but not yet deleted.

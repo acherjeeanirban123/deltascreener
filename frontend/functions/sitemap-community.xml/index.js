@@ -10,7 +10,7 @@ export async function onRequestGet() {
   try {
     let page = 1
     while (page <= 40) { // 40 × 50 = 2,000 URL cap
-      const res = await fetch(`https://api-vps.deltascreener.com/screens/public?page=${page}&limit=50`, {
+      const res = await fetch(`https://api-ovh.deltascreener.com/screens/public?page=${page}&limit=50`, {
         signal: AbortSignal.timeout(8000),
       })
       if (!res.ok) break

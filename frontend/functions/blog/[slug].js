@@ -204,7 +204,7 @@ export async function onRequestGet({ params, env }) {
           var dd = document.getElementById('blog-search-dd');
           if(!input || !dd) return;
           var API = (location.host === 'deltascreener.com' || location.host.endsWith('.deltascreener.com'))
-            ? 'https://api-vps.deltascreener.com' : 'https://screenerpro1-api.acherjeeanirban.workers.dev';
+            ? 'https://api-ovh.deltascreener.com' : 'https://screenerpro1-api.acherjeeanirban.workers.dev';
           var seq = 0, timer = null, first = '';
           function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){
             return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }

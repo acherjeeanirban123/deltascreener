@@ -1,1 +1,1 @@
-export { renderWatchlistPage } from '../app5.js?v=20260719-compare'
+export { renderWatchlistPage } from '../app5.js?v=20260812-ovh'
