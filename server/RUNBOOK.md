@@ -1,7 +1,21 @@
 # DeltaScreener VPS — Runbook
 
-Server: `44.213.148.192` (AWS Lightsail, Ubuntu 24.04, 1 GB RAM / 2 vCPU / 40 GB)
-API: https://api-vps.deltascreener.com (Cloudflare-proxied)
+**Primary (as of 2026-08-12):** `149.56.102.211` (OVH VPS-2, Ubuntu 24.04, 8 GB RAM / 4 vCores / 75 GB)
+API: https://api-ovh.deltascreener.com (Cloudflare-proxied)
+
+**Rollback target:** `44.213.148.192` (AWS Lightsail, Ubuntu 24.04, 1 GB RAM / 2 vCPU / 40 GB)
+API: https://api-vps.deltascreener.com (Cloudflare-proxied) — still running, still has current data via its own cron, kept as the fallback origin.
+
+Everything below was written for the AWS box; the same architecture (Node +
+Postgres + Redis + Nginx + systemd) was replicated on OVH via
+`ovh-bootstrap.sh`, so the triage steps apply to either host — just swap the
+IP/hostname. **Known gaps on the OVH box that exist on AWS and have not yet
+been ported over:** no `ds-backup.timer` (no automated Postgres dumps), no
+`ds-healthcheck.timer` (no watchdog auto-restart), and no Cloudflare-IP-only
+`ufw` lockdown (port 80/443 currently open to the whole internet, not just
+Cloudflare's ranges). The systemd memory caps (`MemoryMax=400M` for the API,
+`300M` for cron) were also copied as-is from the 1 GB AWS box even though OVH
+has 8 GB — safe, but overly conservative and worth raising.
 
 Written for the version of you that is looking at this during an incident.
 
@@ -10,7 +24,8 @@ Written for the version of you that is looking at this during an incident.
 ## Quick triage
 
 ```bash
-ssh ubuntu@44.213.148.192
+ssh -i ~/.ssh/ds_deploy ubuntu@149.56.102.211   # OVH (primary)
+ssh -i ~/.ssh/ds_deploy ubuntu@44.213.148.192   # AWS (rollback)
 
 curl -s localhost:8787/health            # is the app answering?
 systemctl status deltascreener-api       # is the process up?
@@ -243,35 +258,46 @@ A sudden jump means refreshes are writing degraded records.
 
 ---
 
-## Rollback to Cloudflare
+## Rollback to AWS (or to Cloudflare)
 
-**Production now runs on this box.** `deltascreener.com` calls
-`api-vps.deltascreener.com`, which is this server.
+**Production now runs on the OVH box.** `deltascreener.com` calls
+`api-ovh.deltascreener.com`. The frontend's API origin is hardcoded (no
+runtime fallback array) in these files — grep for `api-ovh.deltascreener.com`
+across the repo to find every place it needs to change:
+`frontend/src/app5.js`, `frontend/functions/[[catchall]].js`,
+`frontend/functions/_lib/seo.js`, `frontend/functions/blog/[slug].js`,
+`frontend/functions/compare/[slug].js`, `frontend/functions/screener.js`,
+`frontend/functions/sitemap-community.xml/index.js`,
+`frontend/functions/sitemap-stocks.xml/index.js`,
+`frontend/functions/stock/[ticker].js`.
 
-The Cloudflare Worker at `api.deltascreener.com` is **still live and still
-refreshing its own D1 data**, so rollback needs no data migration.
-
-Partial safety net already in place: the SSR Pages Functions list the Worker as
-their second entry in `API_FALLBACKS`, so server-rendered pages fail over to
-Cloudflare automatically if this box is unreachable. The **browser-side SPA has
-no such fallback** — that path needs the rollback below.
+**Rollback to AWS** (fastest — AWS is still live, still has current data via
+its own cron, and is already in the CSP allowlist):
 
 ```bash
 # On your Mac
 cd "/Users/anirbanacherjee/Desktop/delta screener 1/Delta Screener"
-git revert 160e81a                 # "Cut over API to the VPS (Phase 5)"
+git revert b17e6c7                 # "Cutover frontend API origin from AWS (api-vps) to OVH (api-ovh)"
 cd frontend
 CLOUDFLARE_API_TOKEN="<see SECRETS.md>" npx wrangler pages deploy . \
   --project-name=deltascreener --branch=main --commit-dirty=true
 ```
 
-Takes about a minute. Verify with:
+**Rollback to Cloudflare Worker/D1** (last resort — the original backend).
+The Worker at `api.deltascreener.com` is still live and was already in the
+CSP allowlist before this migration, so no CSP change is needed for this path,
+only re-pointing the API origin strings above from `api-ovh...` to
+`api.deltascreener.com` and redeploying.
+
+Either way, verify with:
 
 ```bash
-curl -s https://deltascreener.com/src/app5.js?v=20260607-fixes | grep -o 'https://api[a-z-]*\.deltascreener\.com'
+curl -s https://deltascreener.com/src/app5.js?v=20260812-ovh | grep -o 'https://api[a-z-]*\.deltascreener\.com'
 ```
 
-Should print `https://api.deltascreener.com` once rolled back.
+It should print whichever origin you rolled back to.
 
-**Do not decommission the Worker or D1 yet** — they are both the rollback path
-and the only off-box copy of the data.
+**Do not decommission the AWS box, the Worker, or D1 yet** — they are all
+rollback paths, and the Worker/D1 pair is still the only fully independent
+off-box copy of the data (Postgres backups on OVH do not exist yet — see the
+gaps note at the top of this file).
