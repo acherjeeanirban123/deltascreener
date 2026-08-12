@@ -4,18 +4,27 @@
 API: https://api-ovh.deltascreener.com (Cloudflare-proxied)
 
 **Rollback target:** `44.213.148.192` (AWS Lightsail, Ubuntu 24.04, 1 GB RAM / 2 vCPU / 40 GB)
-API: https://api-vps.deltascreener.com (Cloudflare-proxied) — still running, still has current data via its own cron, kept as the fallback origin.
+API: https://api-vps.deltascreener.com (Cloudflare-proxied) — API is still running as an emergency rollback, but **`deltascreener-cron` was stopped and disabled on 2026-08-12**, so its data is frozen as of that date, not current. Do not re-enable the cron without a reason; the plan is decommission, not revival.
+
+**Target end state: OVH-only.** AWS and the original Cloudflare Worker/D1 are both
+targeted for decommission on **2026-08-26** (a scheduled task,
+`deltascreener-decommission-check`, checks in that day — it will verify OVH's
+health and ask for explicit confirmation before deleting anything; it will not
+decommission automatically). See `MIGRATION_ROADMAP.md` for the full history
+and reasoning.
 
 Everything below was written for the AWS box; the same architecture (Node +
 Postgres + Redis + Nginx + systemd) was replicated on OVH via
 `ovh-bootstrap.sh`, so the triage steps apply to either host — just swap the
 IP/hostname. `ds-backup.timer`, `ds-healthcheck.timer`, and the
 Cloudflare-IP-only `ufw` lockdown (see [Origin lockdown](#origin-lockdown-cloudflare-only))
-are all in place on OVH as of 2026-08-12, same as AWS.
-
-One real difference: the systemd memory caps (`MemoryMax=400M` for the API,
-`300M` for cron) were copied as-is from the 1 GB AWS box even though OVH has
-8 GB — safe, but overly conservative and worth raising.
+are all in place on OVH as of 2026-08-12, same as AWS. OVH's memory caps were
+also raised on 2026-08-12 (`MemoryMax=1536M`/`MemoryHigh=1200M` API,
+`1024M`/`800M` cron, via a systemd drop-in) to fit its 8 GB, rather than the
+1 GB-sized `400M`/`300M` AWS still runs — AWS's units were left untouched
+since that box is genuinely still 1 GB. OVH also has the VPS-level Premium
+Automated Backup (7-day rolling snapshot history, separate from local
+`ds-backup.timer` dumps) as of the same date, which AWS does not have.
 
 Written for the version of you that is looking at this during an incident.
 
